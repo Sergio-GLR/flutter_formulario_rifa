@@ -50,10 +50,10 @@ class _FormularioScreenState extends State<FormularioScreen> {
       // Simulamos la respuesta exitosa de la API
       setState(() {
         _direccionObtenida =
-            'Calle Constitución #123, Zona Centro'; // Dato simulado
+            'C. Constitución #123, Zona Centro'; // Dato simulado
         _claveCatastralObtenida =
-            '10-001-005-05-0001-062-170-00019-00-0000'; // Dato simulado
-        _propietarioObtenido = 'JUAN PEREZ GARCIA';
+            '10-001-00-02-0001-082-170-00029-00-0000'; // Dato simulado
+        _propietarioObtenido = 'JUAN PEREZ GARCIA'; // Dato simulado
 
         _currentState = FormStatus.confirmacion;
       });
