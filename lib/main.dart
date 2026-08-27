@@ -5,7 +5,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'screens/formulario_screen.dart';
 
 Future<void> main() async {
-  // Aseguramos que los widgets de Flutter estén listos antes de inicializar plugins
   WidgetsFlutterBinding.ensureInitialized();
 
   // Cargamos las variables de entorno ANTES de inicializar Supabase
@@ -21,7 +20,7 @@ Future<void> main() async {
 }
 
 // Creamos esta variable global para poder llamar a la base de datos
-// fácilmente desde cualquier otro archivo de tu proyecto
+// fácilmente desde cualquier otro archivo del prpyecto
 final supabase = Supabase.instance.client;
 
 class RifaPredialApp extends StatelessWidget {
@@ -33,7 +32,7 @@ class RifaPredialApp extends StatelessWidget {
       title: 'Rifa Predial - Octubre',
       theme: ThemeData(
         primarySwatch:
-            Colors.grey, // Puedes ajustarlo a los colores de la institución
+            Colors.grey,
       ),
       home: const FormularioScreen(),
     );

@@ -1,11 +1,11 @@
 {
-    "name": "flutter_formulario_rifa",
-    "short_name": "flutter_formulario_rifa",
+    "name": "Octubre Rifa Predial",
+    "short_name": "Rifa Predial",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Registro para la rifa predial.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
