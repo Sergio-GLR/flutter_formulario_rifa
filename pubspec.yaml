@@ -93,3 +93,4 @@ flutter:
   assets:
     # 4 espacios de sangría para "- .env"
     - .env
+    - assets/images/

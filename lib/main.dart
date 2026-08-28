@@ -25,6 +25,7 @@ class RifaPredialApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      debugShowCheckedModeBanner: false, // quite la etiqueta de debug
       title: 'Rifa Predial - Octubretón',
       theme: ThemeData(primarySwatch: Colors.grey),
       home: const FormularioScreen(),
