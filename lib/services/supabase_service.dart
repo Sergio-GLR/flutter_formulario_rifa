@@ -3,6 +3,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class SupabaseService {
   final _supabase = Supabase.instance.client;
 
+  // Registra un nuevo boleto de rifa llamando a la función RPC (Remote
+  // Procedure Call) [registrar_boleto_rifa] en Supabase.
+
+  // Retorna un [Map] con la respuesta de la base de datos (por ejemplo,
+  // el estado de la operación, mensajes de éxito o errores generados).
   Future<Map<String, dynamic>> registrarBoleto({
     required String transaccion,
     required String nombre,
@@ -26,6 +31,7 @@ class SupabaseService {
         'p_direccion_predio': direccion,
       },
     );
+
     return response;
   }
 }

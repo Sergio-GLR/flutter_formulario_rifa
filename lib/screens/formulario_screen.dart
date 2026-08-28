@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // <-- Agrega esta importación arriba
 
 import '../services/api_municipio_service.dart';
 import '../services/supabase_service.dart';
@@ -14,7 +15,12 @@ class FormularioScreen extends StatefulWidget {
 
 class _FormularioScreenState extends State<FormularioScreen> {
   FormStatus _currentState = FormStatus.capturaInicial;
-  String? _errorTransaccion; // para manejar el estado de error rojo del figma
+  // Variables para controlar el estado visual de error de cada campo
+  String? _errorNombre;
+  String? _errorPaterno;
+  String? _errorMaterno;
+  String? _errorTelefono;
+  String? _errorTransaccion;
 
   final _nombreCtrl = TextEditingController();
   final _apellidoPaternoCtrl = TextEditingController();
@@ -28,14 +34,22 @@ class _FormularioScreenState extends State<FormularioScreen> {
   Map<String, String> _datosPredio = {};
 
   Future<void> _validarTransaccion() async {
-    setState(() => _errorTransaccion = null);
+    // Evaluamos qué campos están vacíos y actualizamos la UI
+    setState(() {
+      _errorNombre = _nombreCtrl.text.isEmpty ? 'Campo requerido' : null;
+      _errorPaterno = _apellidoPaternoCtrl.text.isEmpty ? 'Requerido' : null;
+      _errorMaterno = _apellidoMaternoCtrl.text.isEmpty ? 'Requerido' : null;
+      _errorTelefono = _telefonoCtrl.text.isEmpty ? 'Requerido' : null;
+      _errorTransaccion = _transaccionCtrl.text.isEmpty ? 'Requerido' : null;
+    });
 
-    if (_nombreCtrl.text.isEmpty ||
-        _apellidoPaternoCtrl.text.isEmpty ||
-        _apellidoMaternoCtrl.text.isEmpty ||
-        _telefonoCtrl.text.isEmpty ||
-        _transaccionCtrl.text.isEmpty) {
-      _mostrarSnackBar('Por favor, llena todos los campos');
+    // Si alguno tiene error, detenemos el proceso
+    if (_errorNombre != null ||
+        _errorPaterno != null ||
+        _errorMaterno != null ||
+        _errorTelefono != null ||
+        _errorTransaccion != null) {
+      _mostrarSnackBar('Por favor, completa los campos en rojo', esError: true);
       return;
     }
 
@@ -49,13 +63,11 @@ class _FormularioScreenState extends State<FormularioScreen> {
         _datosPredio = datos;
         _currentState = FormStatus.confirmacion;
       });
-      // aqui se llama directamente al modal en lugar de mostrar info inline
       _mostrarModalConfirmacion();
     } catch (e) {
       setState(() {
         _currentState = FormStatus.capturaInicial;
-        // se activa el estado de error rojo que viene en el Figma
-        _errorTransaccion = 'Ingresa un dato válido'; 
+        _errorTransaccion = 'Ingresa un dato válido';
       });
     }
   }
@@ -72,7 +84,12 @@ class _FormularioScreenState extends State<FormularioScreen> {
           elevation: 0,
           child: Container(
             width: 593,
-            padding: const EdgeInsets.only(top: 40, bottom: 27, left: 32, right: 32),
+            padding: const EdgeInsets.only(
+              top: 40,
+              bottom: 27,
+              left: 32,
+              right: 32,
+            ),
             decoration: ShapeDecoration(
               color: const Color(0xFFD9D9D9),
               shape: RoundedRectangleBorder(
@@ -110,7 +127,9 @@ class _FormularioScreenState extends State<FormularioScreen> {
                         text: 'Cancelar',
                         onPressed: () {
                           Navigator.of(context).pop();
-                          setState(() => _currentState = FormStatus.capturaInicial);
+                          setState(
+                            () => _currentState = FormStatus.capturaInicial,
+                          );
                         },
                       ),
                     ),
@@ -175,8 +194,9 @@ class _FormularioScreenState extends State<FormularioScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bool isCargando = _currentState == FormStatus.validandoApi || 
-                            _currentState == FormStatus.guardando;
+    final bool isCargando =
+        _currentState == FormStatus.validandoApi ||
+        _currentState == FormStatus.guardando;
 
     return Scaffold(
       // csmbie el gradiente radial de fondo para que se vea como en figma
@@ -221,12 +241,12 @@ class _FormularioScreenState extends State<FormularioScreen> {
   Widget _buildBoletoExito() {
     // implemente la tarjeta de exito con el diseño moradito claro
     return Container(
-    width: 407,
-    padding: const EdgeInsets.only(top: 40, bottom: 22, left: 32, right: 32),
-    decoration: BoxDecoration(
-      color: const Color(0xFFE0E0EC),
-      borderRadius: BorderRadius.circular(30),
-    ),
+      width: 407,
+      padding: const EdgeInsets.only(top: 40, bottom: 22, left: 32, right: 32),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE0E0EC),
+        borderRadius: BorderRadius.circular(30),
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -305,9 +325,15 @@ class _FormularioScreenState extends State<FormularioScreen> {
         clipBehavior: Clip.antiAlias,
         decoration: ShapeDecoration(
           color: const Color(0xFFF8F7FC),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
           shadows: const [
-            BoxShadow(color: Color(0x7F000000), blurRadius: 80, offset: Offset(0, 32)),
+            BoxShadow(
+              color: Color(0x7F000000),
+              blurRadius: 80,
+              offset: Offset(0, 32),
+            ),
           ],
         ),
         child: Column(
@@ -319,15 +345,28 @@ class _FormularioScreenState extends State<FormularioScreen> {
               height: 6,
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [Color(0xFF6B6B80), Color(0xFFA0A0AC), Color(0xFFAAAABC)],
+                  colors: [
+                    Color(0xFF6B6B80),
+                    Color(0xFFA0A0AC),
+                    Color(0xFFAAAABC),
+                  ],
                 ),
               ),
             ),
             // header del card
             Container(
-              padding: const EdgeInsets.only(top: 32, left: 32, right: 32, bottom: 24),
+              padding: const EdgeInsets.only(
+                top: 32,
+                left: 32,
+                right: 32,
+                bottom: 24,
+              ),
               decoration: BoxDecoration(
-                border: Border(bottom: BorderSide(color: Colors.black.withValues(alpha: 0.06))),
+                border: Border(
+                  bottom: BorderSide(
+                    color: Colors.black.withValues(alpha: 0.06),
+                  ),
+                ),
               ),
               child: Row(
                 children: [
@@ -383,6 +422,8 @@ class _FormularioScreenState extends State<FormularioScreen> {
                     helper: 'Ingresa tu nombre (s)',
                     controller: _nombreCtrl,
                     enabled: !isCargando,
+                    errorText: _errorNombre,
+                    onChanged: (value) => setState(() => _errorNombre = null),
                   ),
                   const SizedBox(height: 16),
                   Row(
@@ -395,6 +436,9 @@ class _FormularioScreenState extends State<FormularioScreen> {
                           helper: 'Ingresa tu apellido paterno',
                           controller: _apellidoPaternoCtrl,
                           enabled: !isCargando,
+                          errorText: _errorPaterno,
+                          onChanged: (value) =>
+                              setState(() => _errorPaterno = null),
                         ),
                       ),
                       const SizedBox(width: 16),
@@ -405,6 +449,9 @@ class _FormularioScreenState extends State<FormularioScreen> {
                           helper: 'Ingresa tu apellido materno',
                           controller: _apellidoMaternoCtrl,
                           enabled: !isCargando,
+                          errorText: _errorMaterno,
+                          onChanged: (value) =>
+                              setState(() => _errorMaterno = null),
                         ),
                       ),
                     ],
@@ -417,22 +464,39 @@ class _FormularioScreenState extends State<FormularioScreen> {
                     controller: _telefonoCtrl,
                     enabled: !isCargando,
                     keyboardType: TextInputType.phone,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(10),
+                    ],
+                    errorText: _errorTelefono,
+                    onChanged: (value) => setState(() => _errorTelefono = null),
                   ),
                   const SizedBox(height: 16),
+
                   _CustomTextField(
                     label: 'NO. DE TRANSACCIÓN',
-                    hint: 'ej. TXN-20240101-001',
+                    hint: 'ej. 2026-00000',
                     helper: 'Ingresa tu número de transacción',
                     controller: _transaccionCtrl,
                     enabled: !isCargando,
                     errorText: _errorTransaccion,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [_TransaccionFormatter()],
+                    onChanged: (value) =>
+                        setState(() => _errorTransaccion = null),
                   ),
                 ],
               ),
             ),
+
             // Botones inferiores
             Padding(
-              padding: const EdgeInsets.only(top: 8, left: 32, right: 32, bottom: 32),
+              padding: const EdgeInsets.only(
+                top: 8,
+                left: 32,
+                right: 32,
+                bottom: 32,
+              ),
               child: isCargando
                   ? const Center(child: CircularProgressIndicator())
                   : Row(
@@ -469,6 +533,8 @@ class _CustomTextField extends StatelessWidget {
   final bool enabled;
   final TextInputType? keyboardType;
   final String? errorText;
+  final List<TextInputFormatter>? inputFormatters; // <-- Nueva propiedad
+  final ValueChanged<String>? onChanged; // <-- Nuevo propiedad
 
   const _CustomTextField({
     required this.label,
@@ -478,6 +544,8 @@ class _CustomTextField extends StatelessWidget {
     this.enabled = true,
     this.keyboardType,
     this.errorText,
+    this.inputFormatters, // <-- Se añade al constructor
+    this.onChanged, // <-- Se añade al constructor
   });
 
   @override
@@ -502,6 +570,8 @@ class _CustomTextField extends StatelessWidget {
           controller: controller,
           enabled: enabled,
           keyboardType: keyboardType,
+          inputFormatters: inputFormatters,
+          onChanged: onChanged,
           style: const TextStyle(
             color: Color(0xFF1A1A2E),
             fontSize: 14,
@@ -510,19 +580,28 @@ class _CustomTextField extends StatelessWidget {
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: const TextStyle(color: Color(0x7F1A1A2E)),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
             filled: true,
-            fillColor: Colors.white,
+            fillColor: hasError
+                ? const Color(0xFFEB5757).withValues(alpha: 0.08)
+                : Colors.white,
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
               borderSide: BorderSide(
-                color: hasError ? const Color(0xFFEB5757) : const Color(0xFFE0E0EC),
+                color: hasError
+                    ? const Color(0xFFEB5757)
+                    : const Color(0xFFE0E0EC),
               ),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
               borderSide: BorderSide(
-                color: hasError ? const Color(0xFFEB5757) : const Color(0xFFC4B5FD),
+                color: hasError
+                    ? const Color(0xFFEB5757)
+                    : const Color(0xFFC4B5FD),
               ),
             ),
             disabledBorder: OutlineInputBorder(
@@ -530,7 +609,11 @@ class _CustomTextField extends StatelessWidget {
               borderSide: const BorderSide(color: Color(0xFFE0E0EC)),
             ),
             suffixIcon: hasError
-                ? const Icon(Icons.error_outline, color: Color(0xFFEB5757), size: 20)
+                ? const Icon(
+                    Icons.error_outline,
+                    color: Color(0xFFEB5757),
+                    size: 20,
+                  )
                 : null,
           ),
         ),
@@ -566,9 +649,15 @@ class _PrimaryButton extends StatelessWidget {
           gradient: const LinearGradient(
             colors: [Color(0xFFA0A0AC), Color(0xFF858585)],
           ),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
           shadows: const [
-            BoxShadow(color: Color(0x667A5CFA), blurRadius: 20, offset: Offset(0, 4)),
+            BoxShadow(
+              color: Color(0x667A5CFA),
+              blurRadius: 20,
+              offset: Offset(0, 4),
+            ),
           ],
         ),
         child: Center(
@@ -608,7 +697,11 @@ class _SecondaryButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(14),
           ),
           shadows: const [
-            BoxShadow(color: Color(0x0F000000), blurRadius: 8, offset: Offset(0, 2)),
+            BoxShadow(
+              color: Color(0x0F000000),
+              blurRadius: 8,
+              offset: Offset(0, 2),
+            ),
           ],
         ),
         child: Center(
@@ -623,6 +716,34 @@ class _SecondaryButton extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _TransaccionFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    // Eliminamos cualquier cosa que no sea un número
+    String digits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+
+    // Limitamos a 9 dígitos máximo (4 del año + 5 del recibo)
+    if (digits.length > 9) {
+      digits = digits.substring(0, 9);
+    }
+
+    // Inyecta el guion automáticamente después del 4to dígito
+    String formatted = digits;
+    if (digits.length > 4) {
+      formatted = '${digits.substring(0, 4)}-${digits.substring(4)}';
+    }
+
+    return TextEditingValue(
+      text: formatted,
+      // Mantienemos el cursor al final del texto mientras escribe
+      selection: TextSelection.collapsed(offset: formatted.length),
     );
   }
 }
