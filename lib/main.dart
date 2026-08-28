@@ -19,21 +19,14 @@ Future<void> main() async {
   runApp(const RifaPredialApp());
 }
 
-// Creamos esta variable global para poder llamar a la base de datos
-// fácilmente desde cualquier otro archivo del prpyecto
-final supabase = Supabase.instance.client;
-
 class RifaPredialApp extends StatelessWidget {
   const RifaPredialApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Rifa Predial - Octubre',
-      theme: ThemeData(
-        primarySwatch:
-            Colors.grey,
-      ),
+      title: 'Rifa Predial - Octubretón',
+      theme: ThemeData(primarySwatch: Colors.grey),
       home: const FormularioScreen(),
     );
   }

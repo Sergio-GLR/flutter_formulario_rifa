@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../services/api_municipio_service.dart';
 import '../services/supabase_service.dart';
 
@@ -13,8 +14,10 @@ class FormularioScreen extends StatefulWidget {
 
 class _FormularioScreenState extends State<FormularioScreen> {
   FormStatus _currentState = FormStatus.capturaInicial;
-  
+
   final _nombreCtrl = TextEditingController();
+  final _apellidoPaternoCtrl = TextEditingController(); // Nuevo
+  final _apellidoMaternoCtrl = TextEditingController(); // Nuevo
   final _telefonoCtrl = TextEditingController();
   final _transaccionCtrl = TextEditingController();
 
@@ -24,7 +27,11 @@ class _FormularioScreenState extends State<FormularioScreen> {
   Map<String, String> _datosPredio = {};
 
   Future<void> _validarTransaccion() async {
-    if (_nombreCtrl.text.isEmpty || _telefonoCtrl.text.isEmpty || _transaccionCtrl.text.isEmpty) {
+    if (_nombreCtrl.text.isEmpty ||
+        _apellidoPaternoCtrl.text.isEmpty ||
+        _apellidoMaternoCtrl.text.isEmpty ||
+        _telefonoCtrl.text.isEmpty ||
+        _transaccionCtrl.text.isEmpty) {
       _mostrarSnackBar('Por favor, llena todos los campos');
       return;
     }
@@ -32,7 +39,9 @@ class _FormularioScreenState extends State<FormularioScreen> {
     setState(() => _currentState = FormStatus.validandoApi);
 
     try {
-      final datos = await _apiService.validarTransaccion(_transaccionCtrl.text.trim());
+      final datos = await _apiService.validarTransaccion(
+        _transaccionCtrl.text.trim(),
+      );
       setState(() {
         _datosPredio = datos;
         _currentState = FormStatus.confirmacion;
@@ -43,15 +52,16 @@ class _FormularioScreenState extends State<FormularioScreen> {
     }
   }
 
-  // Nuevo método para mostrar el modal del diagrama
   Future<void> _mostrarModalConfirmacion() async {
     return showDialog<void>(
       context: context,
-      barrierDismissible: false, 
+      barrierDismissible: false,
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('¿Toda la información es correcta?'),
-          content: const Text('Verifica que la dirección del predio corresponda a tu pago antes de generar el boleto.'),
+          content: const Text(
+            'Verifica que la dirección del predio corresponda a tu pago antes de generar el boleto.',
+          ),
           actions: <Widget>[
             TextButton(
               child: const Text('Cancelar'),
@@ -77,6 +87,8 @@ class _FormularioScreenState extends State<FormularioScreen> {
       final response = await _supabaseService.registrarBoleto(
         transaccion: _transaccionCtrl.text.trim(),
         nombre: _nombreCtrl.text.trim(),
+        apellidoPaterno: _apellidoPaternoCtrl.text.trim(),
+        apellidoMaterno: _apellidoMaternoCtrl.text.trim(),
         telefono: _telefonoCtrl.text.trim(),
         clave: _datosPredio['claveCatastral']!,
         propietario: _datosPredio['propietario']!,
@@ -107,6 +119,8 @@ class _FormularioScreenState extends State<FormularioScreen> {
 
   void _reiniciarFormulario() {
     _nombreCtrl.clear();
+    _apellidoPaternoCtrl.clear();
+    _apellidoMaternoCtrl.clear();
     _telefonoCtrl.clear();
     _transaccionCtrl.clear();
     setState(() => _currentState = FormStatus.capturaInicial);
@@ -126,15 +140,17 @@ class _FormularioScreenState extends State<FormularioScreen> {
       body: Center(
         child: SingleChildScrollView(
           child: Container(
-            constraints: const BoxConstraints(maxWidth: 500), // Responsivo web/móvil
+            constraints: const BoxConstraints(maxWidth: 500),
             padding: const EdgeInsets.all(24.0),
             child: Card(
               elevation: 4,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(32.0),
-                child: _currentState == FormStatus.exito 
-                    ? _buildBoletoExito() 
+                child: _currentState == FormStatus.exito
+                    ? _buildBoletoExito()
                     : _buildFormulario(camposBloqueados),
               ),
             ),
@@ -149,7 +165,14 @@ class _FormularioScreenState extends State<FormularioScreen> {
       children: [
         const Icon(Icons.check_circle, color: Colors.green, size: 80),
         const SizedBox(height: 16),
-        const Text('¡Registro Exitoso!', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.green)),
+        const Text(
+          '¡Registro Exitoso!',
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            color: Colors.green,
+          ),
+        ),
         const SizedBox(height: 16),
         Container(
           padding: const EdgeInsets.all(16),
@@ -160,8 +183,18 @@ class _FormularioScreenState extends State<FormularioScreen> {
           ),
           child: Column(
             children: [
-              const Text('Tu Folio de Participación:', style: TextStyle(color: Colors.blueGrey)),
-              Text(_transaccionCtrl.text.toUpperCase(), style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 2)),
+              const Text(
+                'Tu Folio de Participación:',
+                style: TextStyle(color: Colors.blueGrey),
+              ),
+              Text(
+                _transaccionCtrl.text.toUpperCase(),
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 2,
+                ),
+              ),
             ],
           ),
         ),
@@ -178,38 +211,92 @@ class _FormularioScreenState extends State<FormularioScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text('Registro para la Rifa de Octubre', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+        const Text(
+          'Registro para la Rifa de Octubre',
+          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          textAlign: TextAlign.center,
+        ),
         const SizedBox(height: 24),
         TextField(
           controller: _nombreCtrl,
           enabled: !camposBloqueados,
-          decoration: const InputDecoration(labelText: 'Nombre de quien pagó', border: OutlineInputBorder()),
+          decoration: const InputDecoration(
+            labelText: 'Nombre(s) de quien pagó',
+            border: OutlineInputBorder(),
+          ),
         ),
+        const SizedBox(height: 16),
+
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _apellidoPaternoCtrl,
+                enabled: !camposBloqueados,
+                decoration: const InputDecoration(
+                  labelText: 'Apellido Paterno',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: TextField(
+                controller: _apellidoMaternoCtrl,
+                enabled: !camposBloqueados,
+                decoration: const InputDecoration(
+                  labelText: 'Apellido Materno',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ),
+          ],
+        ),
+
         const SizedBox(height: 16),
         TextField(
           controller: _telefonoCtrl,
           enabled: !camposBloqueados,
-          decoration: const InputDecoration(labelText: 'Teléfono', border: OutlineInputBorder()),
+          decoration: const InputDecoration(
+            labelText: 'Teléfono',
+            border: OutlineInputBorder(),
+          ),
           keyboardType: TextInputType.phone,
         ),
         const SizedBox(height: 16),
         TextField(
           controller: _transaccionCtrl,
           enabled: !camposBloqueados,
-          decoration: const InputDecoration(labelText: 'Número de Transacción', border: OutlineInputBorder()),
+          decoration: const InputDecoration(
+            labelText: 'Número de Transacción',
+            border: OutlineInputBorder(),
+          ),
         ),
         const SizedBox(height: 24),
-        
-        if (_currentState == FormStatus.confirmacion || _currentState == FormStatus.guardando) ...[
+
+        if (_currentState == FormStatus.confirmacion ||
+            _currentState == FormStatus.guardando) ...[
           Container(
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: Colors.orange[50], borderRadius: BorderRadius.circular(8)),
+            decoration: BoxDecoration(
+              color: Colors.orange[50],
+              borderRadius: BorderRadius.circular(8),
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Por favor, confirma que esta es la dirección del predio:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.deepOrange)),
+                const Text(
+                  'Por favor, confirma que esta es la dirección del predio:',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.deepOrange,
+                  ),
+                ),
                 const SizedBox(height: 8),
-                Text(_datosPredio['direccion'] ?? '', style: const TextStyle(fontSize: 16)),
+                Text(
+                  _datosPredio['direccion'] ?? '',
+                  style: const TextStyle(fontSize: 16),
+                ),
               ],
             ),
           ),
@@ -219,25 +306,44 @@ class _FormularioScreenState extends State<FormularioScreen> {
         if (_currentState == FormStatus.capturaInicial)
           ElevatedButton(
             onPressed: _validarTransaccion,
-            child: const Padding(padding: EdgeInsets.symmetric(vertical: 16), child: Text('Validar Transacción', style: TextStyle(fontSize: 16))),
+            child: const Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: Text(
+                'Validar Transacción',
+                style: TextStyle(fontSize: 16),
+              ),
+            ),
           )
-        else if (_currentState == FormStatus.validandoApi || _currentState == FormStatus.guardando)
+        else if (_currentState == FormStatus.validandoApi ||
+            _currentState == FormStatus.guardando)
           const Center(child: CircularProgressIndicator())
         else if (_currentState == FormStatus.confirmacion)
           Row(
             children: [
               Expanded(
                 child: OutlinedButton(
-                  onPressed: () => setState(() => _currentState = FormStatus.capturaInicial),
-                  child: const Padding(padding: EdgeInsets.symmetric(vertical: 16), child: Text('Corregir datos')),
+                  onPressed: () =>
+                      setState(() => _currentState = FormStatus.capturaInicial),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: Text('Corregir datos'),
+                  ),
                 ),
               ),
               const SizedBox(width: 16),
               Expanded(
                 child: ElevatedButton(
-                  onPressed: _mostrarModalConfirmacion, // Ahora llama al modal primero
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                  child: const Padding(padding: EdgeInsets.symmetric(vertical: 16), child: Text('Participar en la Rifa', style: TextStyle(color: Colors.white))),
+                  onPressed: _mostrarModalConfirmacion,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                  ),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: Text(
+                      'Participar en la Rifa',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
                 ),
               ),
             ],

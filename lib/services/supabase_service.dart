@@ -6,6 +6,8 @@ class SupabaseService {
   Future<Map<String, dynamic>> registrarBoleto({
     required String transaccion,
     required String nombre,
+    required String apellidoPaterno,
+    required String apellidoMaterno,
     required String telefono,
     required String clave,
     required String propietario,
@@ -16,6 +18,8 @@ class SupabaseService {
       params: {
         'p_numero_transaccion': transaccion,
         'p_nombre_pagador': nombre,
+        'p_apellido_paterno': apellidoPaterno,
+        'p_apellido_materno': apellidoMaterno,
         'p_telefono_pagador': telefono,
         'p_clave_catastral': clave,
         'p_propietario_registrado': propietario,
