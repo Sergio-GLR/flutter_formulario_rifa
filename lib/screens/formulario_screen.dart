@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // <-- Agrega esta importación arriba
+import 'package:flutter/services.dart';
 
 import '../services/api_municipio_service.dart';
 import '../services/supabase_service.dart';
@@ -15,6 +15,7 @@ class FormularioScreen extends StatefulWidget {
 
 class _FormularioScreenState extends State<FormularioScreen> {
   FormStatus _currentState = FormStatus.capturaInicial;
+
   // Variables para controlar el estado visual de error de cada campo
   String? _errorNombre;
   String? _errorPaterno;
@@ -418,12 +419,20 @@ class _FormularioScreenState extends State<FormularioScreen> {
                 children: [
                   _CustomTextField(
                     label: 'NOMBRE (S)',
-                    hint: 'ej. María Fernanda',
+                    hint: 'ej. MARÍA FERNANDA',
                     helper: 'Ingresa tu nombre (s)',
                     controller: _nombreCtrl,
                     enabled: !isCargando,
                     errorText: _errorNombre,
                     onChanged: (value) => setState(() => _errorNombre = null),
+                    textCapitalization:
+                        TextCapitalization.characters, // Teclado en mayúsculas
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(
+                        RegExp(r'[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]'),
+                      ), // Bloquea números y símbolos
+                      _UpperCaseTextFormatter(), // Fuerza mayúsculas
+                    ],
                   ),
                   const SizedBox(height: 16),
                   Row(
@@ -432,26 +441,40 @@ class _FormularioScreenState extends State<FormularioScreen> {
                       Expanded(
                         child: _CustomTextField(
                           label: 'APELLIDO PATERNO',
-                          hint: 'ej. García',
+                          hint: 'ej. GARCÍA',
                           helper: 'Ingresa tu apellido paterno',
                           controller: _apellidoPaternoCtrl,
                           enabled: !isCargando,
                           errorText: _errorPaterno,
                           onChanged: (value) =>
                               setState(() => _errorPaterno = null),
+                          textCapitalization: TextCapitalization.characters,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(
+                              RegExp(r'[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]'),
+                            ),
+                            _UpperCaseTextFormatter(),
+                          ],
                         ),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
                         child: _CustomTextField(
                           label: 'APELLIDO MATERNO',
-                          hint: 'ej. López',
+                          hint: 'ej. LÓPEZ',
                           helper: 'Ingresa tu apellido materno',
                           controller: _apellidoMaternoCtrl,
                           enabled: !isCargando,
                           errorText: _errorMaterno,
                           onChanged: (value) =>
                               setState(() => _errorMaterno = null),
+                          textCapitalization: TextCapitalization.characters,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(
+                              RegExp(r'[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]'),
+                            ),
+                            _UpperCaseTextFormatter(),
+                          ],
                         ),
                       ),
                     ],
@@ -535,6 +558,7 @@ class _CustomTextField extends StatelessWidget {
   final String? errorText;
   final List<TextInputFormatter>? inputFormatters; // <-- Nueva propiedad
   final ValueChanged<String>? onChanged; // <-- Nuevo propiedad
+  final TextCapitalization textCapitalization; // <-- Nuevo propiedad
 
   const _CustomTextField({
     required this.label,
@@ -546,6 +570,7 @@ class _CustomTextField extends StatelessWidget {
     this.errorText,
     this.inputFormatters, // <-- Se añade al constructor
     this.onChanged, // <-- Se añade al constructor
+    this.textCapitalization = TextCapitalization.none, // <-- Valor por defecto
   });
 
   @override
@@ -572,6 +597,7 @@ class _CustomTextField extends StatelessWidget {
           keyboardType: keyboardType,
           inputFormatters: inputFormatters,
           onChanged: onChanged,
+          textCapitalization: textCapitalization,
           style: const TextStyle(
             color: Color(0xFF1A1A2E),
             fontSize: 14,
@@ -744,6 +770,19 @@ class _TransaccionFormatter extends TextInputFormatter {
       text: formatted,
       // Mantienemos el cursor al final del texto mientras escribe
       selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+}
+
+class _UpperCaseTextFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    return TextEditingValue(
+      text: newValue.text.toUpperCase(),
+      selection: newValue.selection,
     );
   }
 }
