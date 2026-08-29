@@ -189,6 +189,10 @@ class _FormularioScreenState extends State<FormularioScreen> {
     _transaccionCtrl.clear();
     setState(() {
       _currentState = FormStatus.capturaInicial;
+      _errorNombre = null;
+      _errorPaterno = null;
+      _errorMaterno = null;
+      _errorTelefono = null;
       _errorTransaccion = null;
     });
   }
