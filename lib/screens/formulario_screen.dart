@@ -29,6 +29,23 @@ class _FormularioScreenState extends State<FormularioScreen> {
   final _telefonoCtrl = TextEditingController();
   final _transaccionCtrl = TextEditingController();
 
+  late FocusNode _transaccionFocus;
+
+  @override
+  void initState() {
+    super.initState();
+    _transaccionFocus = FocusNode();
+    _transaccionFocus.addListener(() {
+      setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _transaccionFocus.dispose();
+    super.dispose();
+  }
+
   final _apiService = ApiMunicipioService();
   final _supabaseService = SupabaseService();
 
@@ -38,10 +55,20 @@ class _FormularioScreenState extends State<FormularioScreen> {
     // Evaluamos qué campos están vacíos y actualizamos la UI
     setState(() {
       _errorNombre = _nombreCtrl.text.isEmpty ? 'Campo requerido' : null;
-      _errorPaterno = _apellidoPaternoCtrl.text.isEmpty ? 'Requerido' : null;
-      _errorMaterno = _apellidoMaternoCtrl.text.isEmpty ? 'Requerido' : null;
-      _errorTelefono = _telefonoCtrl.text.isEmpty ? 'Requerido' : null;
-      _errorTransaccion = _transaccionCtrl.text.isEmpty ? 'Requerido' : null;
+      _errorPaterno = _apellidoPaternoCtrl.text.isEmpty
+          ? 'Campo Requerido'
+          : null;
+      _errorMaterno = _apellidoMaternoCtrl.text.isEmpty
+          ? 'Campo Requerido'
+          : null;
+
+      // Hacemos una validacion para exigir la longitud completa
+      _errorTelefono = _telefonoCtrl.text.length < 10
+          ? 'Debe contener 10 dígitos'
+          : null;
+      _errorTransaccion = _transaccionCtrl.text.length < 5
+          ? 'Faltan dígitos'
+          : null;
     });
 
     // Si alguno tiene error, detenemos el proceso
@@ -57,9 +84,9 @@ class _FormularioScreenState extends State<FormularioScreen> {
     setState(() => _currentState = FormStatus.validandoApi);
 
     try {
-      final datos = await _apiService.validarTransaccion(
-        _transaccionCtrl.text.trim(),
-      );
+      final transaccionCompleta =
+          '${DateTime.now().year}-${_transaccionCtrl.text.trim()}';
+      final datos = await _apiService.validarTransaccion(transaccionCompleta);
       setState(() {
         _datosPredio = datos;
         _currentState = FormStatus.confirmacion;
@@ -73,7 +100,6 @@ class _FormularioScreenState extends State<FormularioScreen> {
     }
   }
 
-  // cambie el AlertDialog por defecto por un Dialog personalizado que iguala al Figma
   Future<void> _mostrarModalConfirmacion() async {
     return showDialog<void>(
       context: context,
@@ -101,7 +127,7 @@ class _FormularioScreenState extends State<FormularioScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'NO. DE TRANSACCIÓN: ${_transaccionCtrl.text}\nDIRECCIÓN: ${_datosPredio['direccion'] ?? 'No disponible'}',
+                  'NO. DE TRANSACCIÓN: ${DateTime.now().year}-${_transaccionCtrl.text}\nDIRECCIÓN: ${_datosPredio['direccion'] ?? 'No disponible'}',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     color: Color(0xFF4A4A4A),
@@ -148,8 +174,11 @@ class _FormularioScreenState extends State<FormularioScreen> {
     setState(() => _currentState = FormStatus.guardando);
 
     try {
+      final transaccionCompleta =
+          '${DateTime.now().year}-${_transaccionCtrl.text.trim()}';
+
       final response = await _supabaseService.registrarBoleto(
-        transaccion: _transaccionCtrl.text.trim(),
+        transaccion: transaccionCompleta,
         nombre: _nombreCtrl.text.trim(),
         apellidoPaterno: _apellidoPaternoCtrl.text.trim(),
         apellidoMaterno: _apellidoMaternoCtrl.text.trim(),
@@ -189,6 +218,10 @@ class _FormularioScreenState extends State<FormularioScreen> {
     _transaccionCtrl.clear();
     setState(() {
       _currentState = FormStatus.capturaInicial;
+      _errorNombre = null;
+      _errorPaterno = null;
+      _errorMaterno = null;
+      _errorTelefono = null;
       _errorTransaccion = null;
     });
   }
@@ -200,7 +233,6 @@ class _FormularioScreenState extends State<FormularioScreen> {
         _currentState == FormStatus.guardando;
 
     return Scaffold(
-      // csmbie el gradiente radial de fondo para que se vea como en figma
       body: Container(
         width: double.infinity,
         height: double.infinity,
@@ -214,7 +246,6 @@ class _FormularioScreenState extends State<FormularioScreen> {
         child: Stack(
           alignment: Alignment.center,
           children: [
-            // destello suave de fondo
             Opacity(
               opacity: 0.03,
               child: Container(
@@ -240,7 +271,6 @@ class _FormularioScreenState extends State<FormularioScreen> {
   }
 
   Widget _buildBoletoExito() {
-    // implemente la tarjeta de exito con el diseño moradito claro
     return Container(
       width: 407,
       padding: const EdgeInsets.only(top: 40, bottom: 22, left: 32, right: 32),
@@ -256,7 +286,7 @@ class _FormularioScreenState extends State<FormularioScreen> {
             width: 64,
             height: 64,
             decoration: const BoxDecoration(
-              color: Colors.green, //color de la palomita
+              color: Colors.green,
               shape: BoxShape.circle,
             ),
             child: const Icon(Icons.check, color: Colors.white, size: 40),
@@ -283,18 +313,6 @@ class _FormularioScreenState extends State<FormularioScreen> {
             ),
           ),
           const SizedBox(height: 32),
-          // imagen del ticket (placeholder) para cambiarla despues
-          // Container(
-          //   width: 187,
-          //   height: 107,
-          //   decoration: const BoxDecoration(
-          //     image: DecorationImage(
-          //       image: NetworkImage("https://placehold.co/187x107"),
-          //       fit: BoxFit.cover,
-          //     ),
-          //   ),
-          // ),
-          const SizedBox(height: 32),
           Row(
             children: [
               Expanded(
@@ -308,7 +326,7 @@ class _FormularioScreenState extends State<FormularioScreen> {
                 child: _SecondaryButton(
                   text: 'Ver Resumen',
                   onPressed: () {
-                    // aqui podemos agregar la lógica para ver el resumen despues
+                    // lógica para ver el resumen despues
                   },
                 ),
               ),
@@ -341,7 +359,6 @@ class _FormularioScreenState extends State<FormularioScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // borde superior degradado
             Container(
               height: 6,
               decoration: const BoxDecoration(
@@ -354,7 +371,6 @@ class _FormularioScreenState extends State<FormularioScreen> {
                 ),
               ),
             ),
-            // header del card
             Container(
               padding: const EdgeInsets.only(
                 top: 32,
@@ -371,7 +387,6 @@ class _FormularioScreenState extends State<FormularioScreen> {
               ),
               child: Row(
                 children: [
-                  // aqui podemos cambiar el placeholder por el logo de Durango
                   Container(
                     width: 104,
                     height: 64,
@@ -411,7 +426,6 @@ class _FormularioScreenState extends State<FormularioScreen> {
                 ],
               ),
             ),
-            // contenido de los inputs
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
               child: Column(
@@ -425,13 +439,12 @@ class _FormularioScreenState extends State<FormularioScreen> {
                     enabled: !isCargando,
                     errorText: _errorNombre,
                     onChanged: (value) => setState(() => _errorNombre = null),
-                    textCapitalization:
-                        TextCapitalization.characters, // Teclado en mayúsculas
+                    textCapitalization: TextCapitalization.characters,
                     inputFormatters: [
                       FilteringTextInputFormatter.allow(
                         RegExp(r'[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]'),
-                      ), // Bloquea números y símbolos
-                      _UpperCaseTextFormatter(), // Fuerza mayúsculas
+                      ),
+                      _UpperCaseTextFormatter(),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -495,24 +508,34 @@ class _FormularioScreenState extends State<FormularioScreen> {
                     onChanged: (value) => setState(() => _errorTelefono = null),
                   ),
                   const SizedBox(height: 16),
-
                   _CustomTextField(
                     label: 'NO. DE TRANSACCIÓN',
-                    hint: 'ej. 2026-00000',
-                    helper: 'Ingresa tu número de transacción',
+                    hint:
+                        (_transaccionFocus.hasFocus ||
+                            _transaccionCtrl.text.isNotEmpty)
+                        ? 'ej. 00000'
+                        : 'ej. ${DateTime.now().year}-00000',
+                    helper: 'Ingresa los 5 dígitos de tu recibo',
                     controller: _transaccionCtrl,
+                    focusNode: _transaccionFocus,
                     enabled: !isCargando,
                     errorText: _errorTransaccion,
                     keyboardType: TextInputType.number,
-                    inputFormatters: [_TransaccionFormatter()],
+                    prefixText:
+                        (_transaccionFocus.hasFocus ||
+                            _transaccionCtrl.text.isNotEmpty)
+                        ? '${DateTime.now().year}-'
+                        : null,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(5),
+                    ],
                     onChanged: (value) =>
                         setState(() => _errorTransaccion = null),
                   ),
                 ],
               ),
             ),
-
-            // Botones inferiores
             Padding(
               padding: const EdgeInsets.only(
                 top: 8,
@@ -547,7 +570,6 @@ class _FormularioScreenState extends State<FormularioScreen> {
   }
 }
 
-// aqui extraemos el textfield para no saturar de codigo el widget principal
 class _CustomTextField extends StatelessWidget {
   final String label;
   final String hint;
@@ -556,9 +578,11 @@ class _CustomTextField extends StatelessWidget {
   final bool enabled;
   final TextInputType? keyboardType;
   final String? errorText;
-  final List<TextInputFormatter>? inputFormatters; // <-- Nueva propiedad
-  final ValueChanged<String>? onChanged; // <-- Nuevo propiedad
-  final TextCapitalization textCapitalization; // <-- Nuevo propiedad
+  final List<TextInputFormatter>? inputFormatters;
+  final ValueChanged<String>? onChanged;
+  final TextCapitalization textCapitalization;
+  final FocusNode? focusNode;
+  final String? prefixText;
 
   const _CustomTextField({
     required this.label,
@@ -568,9 +592,11 @@ class _CustomTextField extends StatelessWidget {
     this.enabled = true,
     this.keyboardType,
     this.errorText,
-    this.inputFormatters, // <-- Se añade al constructor
-    this.onChanged, // <-- Se añade al constructor
-    this.textCapitalization = TextCapitalization.none, // <-- Valor por defecto
+    this.inputFormatters,
+    this.onChanged,
+    this.textCapitalization = TextCapitalization.none,
+    this.focusNode,
+    this.prefixText,
   });
 
   @override
@@ -593,6 +619,7 @@ class _CustomTextField extends StatelessWidget {
         const SizedBox(height: 6),
         TextField(
           controller: controller,
+          focusNode: focusNode,
           enabled: enabled,
           keyboardType: keyboardType,
           inputFormatters: inputFormatters,
@@ -605,6 +632,13 @@ class _CustomTextField extends StatelessWidget {
           ),
           decoration: InputDecoration(
             hintText: hint,
+            prefixText: prefixText,
+            prefixStyle: const TextStyle(
+              color: Color(0xFF1A1A2E),
+              fontSize: 14,
+              fontFamily: 'Plus Jakarta Sans',
+              fontWeight: FontWeight.w600,
+            ),
             hintStyle: const TextStyle(color: Color(0x7F1A1A2E)),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16,
@@ -657,7 +691,6 @@ class _CustomTextField extends StatelessWidget {
   }
 }
 
-// boton a ceptar con su gradiente
 class _PrimaryButton extends StatelessWidget {
   final String text;
   final VoidCallback onPressed;
@@ -702,7 +735,6 @@ class _PrimaryButton extends StatelessWidget {
   }
 }
 
-// boton cancelar blanco con borde
 class _SecondaryButton extends StatelessWidget {
   final String text;
   final VoidCallback onPressed;
@@ -742,34 +774,6 @@ class _SecondaryButton extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _TransaccionFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    // Eliminamos cualquier cosa que no sea un número
-    String digits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
-
-    // Limitamos a 9 dígitos máximo (4 del año + 5 del recibo)
-    if (digits.length > 9) {
-      digits = digits.substring(0, 9);
-    }
-
-    // Inyecta el guion automáticamente después del 4to dígito
-    String formatted = digits;
-    if (digits.length > 4) {
-      formatted = '${digits.substring(0, 4)}-${digits.substring(4)}';
-    }
-
-    return TextEditingValue(
-      text: formatted,
-      // Mantienemos el cursor al final del texto mientras escribe
-      selection: TextSelection.collapsed(offset: formatted.length),
     );
   }
 }
