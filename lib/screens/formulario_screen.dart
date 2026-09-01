@@ -16,7 +16,7 @@ class FormularioScreen extends StatefulWidget {
 class _FormularioScreenState extends State<FormularioScreen> {
   FormStatus _currentState = FormStatus.capturaInicial;
 
-  // Variables para controlar el estado visual de error de cada campo
+  // variables para controlar el estado visual de error de cada campo
   String? _errorNombre;
   String? _errorPaterno;
   String? _errorMaterno;
@@ -43,6 +43,11 @@ class _FormularioScreenState extends State<FormularioScreen> {
   @override
   void dispose() {
     _transaccionFocus.dispose();
+    _nombreCtrl.dispose();
+    _apellidoPaternoCtrl.dispose();
+    _apellidoMaternoCtrl.dispose();
+    _telefonoCtrl.dispose();
+    _transaccionCtrl.dispose();
     super.dispose();
   }
 
@@ -52,7 +57,7 @@ class _FormularioScreenState extends State<FormularioScreen> {
   Map<String, String> _datosPredio = {};
 
   Future<void> _validarTransaccion() async {
-    // Evaluamos qué campos están vacíos y actualizamos la UI
+    // evaluamos que campos están vacios y actualizamos la UI
     setState(() {
       _errorNombre = _nombreCtrl.text.isEmpty ? 'Campo requerido' : null;
       _errorPaterno = _apellidoPaternoCtrl.text.isEmpty
@@ -104,7 +109,7 @@ class _FormularioScreenState extends State<FormularioScreen> {
     return showDialog<void>(
       context: context,
       barrierDismissible: false,
-      barrierColor: Colors.black.withValues(alpha: 0.5),
+      barrierColor: Colors.black54,
       builder: (BuildContext context) {
         return Dialog(
           backgroundColor: Colors.transparent,
@@ -243,26 +248,46 @@ class _FormularioScreenState extends State<FormularioScreen> {
             colors: [Color(0xFF858585), Color(0xFF54545D), Color(0xFF4A4A4A)],
           ),
         ),
+
+        //cambio para poder navegar por fuera del formulario (se nota mas en pc)
         child: Stack(
-          alignment: Alignment.center,
           children: [
-            Opacity(
-              opacity: 0.03,
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: RadialGradient(
-                    center: const Alignment(0.50, 0.50),
-                    radius: 1.03,
-                    colors: [Colors.white, Colors.black.withValues(alpha: 0)],
+            Positioned.fill(
+              child: Opacity(
+                opacity: 0.03,
+                child: Container(
+                  decoration: const BoxDecoration(
+                    gradient: RadialGradient(
+                      center: Alignment(0.50, 0.50),
+                      radius: 1.03,
+                      colors: [Colors.white, Colors.transparent],
+                    ),
                   ),
                 ),
               ),
             ),
-            SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(vertical: 40),
-              child: _currentState == FormStatus.exito
-                  ? _buildBoletoExito()
-                  : _buildFormulario(isCargando),
+            // con LayoutBuilder el scroll ocupeatoda la pantalla y centra el contenido
+            Positioned.fill(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight,
+                      ),
+                      child: Center(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 40),
+                          child: _currentState == FormStatus.exito
+                              ? _buildBoletoExito()
+                              : _buildFormulario(isCargando),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
             ),
           ],
         ),
@@ -277,6 +302,13 @@ class _FormularioScreenState extends State<FormularioScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFFE0E0EC),
         borderRadius: BorderRadius.circular(30),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 24,
+            offset: Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -346,11 +378,12 @@ class _FormularioScreenState extends State<FormularioScreen> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24),
           ),
+          // sombra mas suave de fondo
           shadows: const [
             BoxShadow(
-              color: Color(0x7F000000),
-              blurRadius: 80,
-              offset: Offset(0, 32),
+              color: Colors.black12,
+              blurRadius: 24,
+              offset: Offset(0, 8),
             ),
           ],
         ),
@@ -358,6 +391,7 @@ class _FormularioScreenState extends State<FormularioScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // linea decorativa
             Container(
               height: 6,
               decoration: const BoxDecoration(
@@ -370,19 +404,13 @@ class _FormularioScreenState extends State<FormularioScreen> {
                 ),
               ),
             ),
+            // encabezado institucional primero
             Container(
               padding: const EdgeInsets.only(
                 top: 32,
                 left: 32,
                 right: 32,
                 bottom: 24,
-              ),
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(
-                    color: Colors.black.withValues(alpha: 0.06),
-                  ),
-                ),
               ),
               child: Row(
                 children: [
@@ -425,8 +453,30 @@ class _FormularioScreenState extends State<FormularioScreen> {
                 ],
               ),
             ),
+            // banner promocional integrado como tarjeta interna
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Image.asset(
+                  'assets/images/banner_promocion.webp', 
+                  width: double.infinity,
+                  height: 135, // altura del banner
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+            // divisor antes de los campos para organizar visualmente
+            const SizedBox(height: 16),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 32),
+              child: Divider(color: Colors.black12, height: 1),
+            ),
+            const SizedBox(height: 16),
+            
+            // campos del formulario
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
