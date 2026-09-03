@@ -1,4 +1,9 @@
+import 'dart:ui' as ui;
+import 'dart:js_interop';
+import 'package:web/web.dart' as web;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
 import '../services/api_municipio_service.dart';
@@ -32,6 +37,9 @@ class _FormularioScreenState extends State<FormularioScreen> {
   final _transaccionCtrl = TextEditingController();
 
   late FocusNode _transaccionFocus;
+  
+  // llave global para capturar el widget del boleto (impresion/descarga del boleto)
+  final GlobalKey _boletoKey = GlobalKey();
 
   @override
   void initState() {
@@ -197,6 +205,11 @@ class _FormularioScreenState extends State<FormularioScreen> {
 
       if (response['success'] == true) {
         setState(() => _currentState = FormStatus.exito);
+        
+        // esperamos un momento para que el widget se renderice antes de capturarlo
+        Future.delayed(const Duration(milliseconds: 800), () {
+          if (mounted) _descargarBoleto();
+        });
       } else {
         setState(() => _currentState = FormStatus.capturaInicial);
         _mostrarSnackBar(response['message'], esError: true);
@@ -207,12 +220,35 @@ class _FormularioScreenState extends State<FormularioScreen> {
     }
   }
 
+  // logica para capturar y descargar usando package:web
+  Future<void> _descargarBoleto() async {
+    try {
+      RenderRepaintBoundary boundary = _boletoKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+      ui.Image image = await boundary.toImage(pixelRatio: 3.0);
+      ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      Uint8List pngBytes = byteData!.buffer.asUint8List();
+
+      final blob = web.Blob([pngBytes.toJS].toJS);
+      final url = web.URL.createObjectURL(blob);
+      
+      web.HTMLAnchorElement()
+        ..href = url
+        ..download = 'boleto_rifa_octubre_${_transaccionCtrl.text}.png'
+        ..click();
+      
+      web.URL.revokeObjectURL(url);
+      _mostrarSnackBar('Iniciando descarga de boleto...');
+    } catch (e) {
+      _mostrarSnackBar('No se pudo descargar el boleto, intenta manualmente.', esError: true);
+    }
+  }
+
   void _mostrarSnackBar(String mensaje, {bool esError = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(mensaje),
-        backgroundColor: esError ? const Color(0xFFEB5757) : null,
+        backgroundColor: esError ? const Color(0xFFEB5757) : const Color(0xFF4A4A4A),
       ),
     );
   }
@@ -268,7 +304,7 @@ class _FormularioScreenState extends State<FormularioScreen> {
                 ),
               ),
             ),
-            // con LayoutBuilder el scroll ocupeatoda la pantalla y centra el contenido
+            // con LayoutBuilder el scroll ocupa toda la pantalla y centra el contenido
             Positioned.fill(
               child: LayoutBuilder(
                 builder: (context, constraints) {
@@ -348,11 +384,13 @@ class _FormularioScreenState extends State<FormularioScreen> {
           ),
           const SizedBox(height: 16),
 
-          Boleto(
-            transaccion:
-                '${DateTime.now().year}-${_transaccionCtrl.text.trim()}',
-            nombreUsuario:
-                '${_nombreCtrl.text} ${_apellidoPaternoCtrl.text} ${_apellidoMaternoCtrl.text}',
+          // envolvemos el boleto para poder transformarlo en imagen
+          RepaintBoundary(
+            key: _boletoKey,
+            child: Boleto(
+              transaccion: '${DateTime.now().year}-${_transaccionCtrl.text.trim()}',
+              nombreUsuario: '${_nombreCtrl.text} ${_apellidoPaternoCtrl.text} ${_apellidoMaternoCtrl.text}',
+            ),
           ),
 
           // fecha de la rifa
@@ -379,8 +417,16 @@ class _FormularioScreenState extends State<FormularioScreen> {
             ),
           ),
           const SizedBox(height: 24),
+          
           Row(
             children: [
+              Expanded(
+                child: _SecondaryButton(
+                  text: 'Descargar',
+                  onPressed: _descargarBoleto,
+                ),
+              ),
+              const SizedBox(width: 12),
               Expanded(
                 child: _PrimaryButton(
                   text: 'Aceptar',
@@ -929,7 +975,7 @@ class Boleto extends StatelessWidget {
                               ..strokeWidth = 4.0
                               ..strokeCap = StrokeCap.round
                               ..strokeJoin = StrokeJoin.round
-                              ..color = Color(0xFF001F54),
+                              ..color = const Color(0xFF001F54),
                           ),
                         ),
                         Text(
