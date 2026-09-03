@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import '../services/api_municipio_service.dart';
 import '../services/supabase_service.dart';
 
+// import 'package:google_fonts/google_fonts.dart';
+
 enum FormStatus { capturaInicial, validandoApi, confirmacion, guardando, exito }
 
 class FormularioScreen extends StatefulWidget {
@@ -353,6 +355,30 @@ class _FormularioScreenState extends State<FormularioScreen> {
                 '${_nombreCtrl.text} ${_apellidoPaternoCtrl.text} ${_apellidoMaternoCtrl.text}',
           ),
 
+          // fecha de la rifa
+          const SizedBox(height: 16),
+          const Text(
+            'La rifa se llevará a cabo el 15 de octubre de 2026.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Color(0xFF4A4A4A),
+              fontSize: 14,
+              fontFamily: 'Plus Jakarta Sans',
+              height: 1.3,
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            '¡Mucha suerte!',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Color(0xFF4A4A4A),
+              fontSize: 14,
+              fontFamily: 'Plus Jakarta Sans',
+              height: 1.3,
+            ),
+          ),
+          const SizedBox(height: 24),
           Row(
             children: [
               Expanded(
@@ -459,7 +485,7 @@ class _FormularioScreenState extends State<FormularioScreen> {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(16),
                 child: Image.asset(
-                  'assets/images/banner_promocion.webp', 
+                  'assets/images/banner_promocion.webp',
                   width: double.infinity,
                   height: 135, // altura del banner
                   fit: BoxFit.cover,
@@ -473,7 +499,7 @@ class _FormularioScreenState extends State<FormularioScreen> {
               child: Divider(color: Colors.black12, height: 1),
             ),
             const SizedBox(height: 16),
-            
+
             // campos del formulario
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 8),
@@ -853,15 +879,14 @@ class Boleto extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const double relacionAspectoImagen = 2.5;
+
     return Container(
       width: double.infinity,
       constraints: const BoxConstraints(maxWidth: 380),
       margin: const EdgeInsets.symmetric(vertical: 16),
-      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade300),
         boxShadow: const [
           BoxShadow(
             color: Colors.black12,
@@ -870,86 +895,118 @@ class Boleto extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: AspectRatio(
+        aspectRatio: relacionAspectoImagen,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Stack(
             children: [
-              const Text(
-                'BOLETO DE PARTICIPACIÓN',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.grey,
-                  letterSpacing: 1.2,
+              Image.asset(
+                'assets/images/boleto.png',
+                width: double.infinity,
+                height: double.infinity,
+                fit: BoxFit.cover,
+              ),
+
+              Positioned(
+                bottom: 12,
+                right: 15,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Stack(
+                      alignment: Alignment.centerRight,
+                      children: [
+                        Text(
+                          nombreUsuario.toUpperCase(),
+                          textAlign: TextAlign.right,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w900,
+                            fontStyle: FontStyle.italic,
+                            foreground: Paint()
+                              ..style = PaintingStyle.stroke
+                              ..strokeWidth = 4.0
+                              ..strokeCap = StrokeCap.round
+                              ..strokeJoin = StrokeJoin.round
+                              ..color = Color(0xFF001F54),
+                          ),
+                        ),
+                        Text(
+                          nombreUsuario.toUpperCase(),
+                          textAlign: TextAlign.right,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w900,
+                            fontStyle: FontStyle.italic,
+                            color: Colors.white,
+                            shadows: [
+                              Shadow(
+                                offset: Offset(2, 2),
+                                blurRadius: 3,
+                                color: Colors.black38,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 4),
+
+                    const Text(
+                      'NO. DE BOLETO:',
+                      textAlign: TextAlign.right,
+                      style: TextStyle(
+                        fontSize: 8,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        shadows: [
+                          Shadow(
+                            color: Colors.black87,
+                            blurRadius: 4,
+                            offset: Offset(1, 1),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    Stack(
+                      alignment: Alignment.centerRight,
+                      children: [
+                        Text(
+                          transaccion,
+                          textAlign: TextAlign.right,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1.5,
+                            foreground: Paint()
+                              ..style = PaintingStyle.stroke
+                              ..strokeWidth = 3.0
+                              ..strokeCap = StrokeCap.round
+                              ..strokeJoin = StrokeJoin.round
+                              ..color = Colors.white,
+                          ),
+                        ),
+                        Text(
+                          transaccion,
+                          textAlign: TextAlign.right,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1.5,
+                            color: Color.fromARGB(255, 168, 0, 70),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-
-          const Divider(height: 24),
-
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'CONTRIBUYENTE',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: Colors.grey,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  nombreUsuario,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade50,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.grey.shade300),
-            ),
-            child: Column(
-              children: [
-                const Text(
-                  'NO. DE BOLETO:',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black54,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  transaccion,
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 2,
-                    color: Colors.black,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
