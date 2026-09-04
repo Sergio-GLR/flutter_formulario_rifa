@@ -1,5 +1,6 @@
 import 'dart:ui' as ui;
 import 'dart:js_interop';
+
 import 'package:web/web.dart' as web;
 
 import 'package:flutter/material.dart';
@@ -37,7 +38,7 @@ class _FormularioScreenState extends State<FormularioScreen> {
   final _transaccionCtrl = TextEditingController();
 
   late FocusNode _transaccionFocus;
-  
+
   // llave global para capturar el widget del boleto (impresion/descarga del boleto)
   final GlobalKey _boletoKey = GlobalKey();
 
@@ -81,7 +82,7 @@ class _FormularioScreenState extends State<FormularioScreen> {
       _errorTelefono = _telefonoCtrl.text.length < 10
           ? 'Debe contener 10 dígitos'
           : null;
-      _errorTransaccion = _transaccionCtrl.text.length < 5
+      _errorTransaccion = _transaccionCtrl.text.length < 6
           ? 'Faltan dígitos'
           : null;
     });
@@ -110,8 +111,13 @@ class _FormularioScreenState extends State<FormularioScreen> {
     } catch (e) {
       setState(() {
         _currentState = FormStatus.capturaInicial;
-        _errorTransaccion = 'Ingresa un dato válido';
+        // Quitamos el error del campo para no confundir visualmente
+        _errorTransaccion = null;
       });
+
+      // Limpiamos el texto del error ("Exception: ...") para que sea legible
+      final mensajeError = e.toString().replaceAll('Exception: ', '');
+      _mostrarSnackBar(mensajeError, esError: true);
     }
   }
 
@@ -205,7 +211,7 @@ class _FormularioScreenState extends State<FormularioScreen> {
 
       if (response['success'] == true) {
         setState(() => _currentState = FormStatus.exito);
-        
+
         // esperamos un momento para que el widget se renderice antes de capturarlo
         Future.delayed(const Duration(milliseconds: 800), () {
           if (mounted) _descargarBoleto();
@@ -223,23 +229,30 @@ class _FormularioScreenState extends State<FormularioScreen> {
   // logica para capturar y descargar usando package:web
   Future<void> _descargarBoleto() async {
     try {
-      RenderRepaintBoundary boundary = _boletoKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+      RenderRepaintBoundary boundary =
+          _boletoKey.currentContext!.findRenderObject()
+              as RenderRepaintBoundary;
       ui.Image image = await boundary.toImage(pixelRatio: 3.0);
-      ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      ByteData? byteData = await image.toByteData(
+        format: ui.ImageByteFormat.png,
+      );
       Uint8List pngBytes = byteData!.buffer.asUint8List();
 
       final blob = web.Blob([pngBytes.toJS].toJS);
       final url = web.URL.createObjectURL(blob);
-      
+
       web.HTMLAnchorElement()
         ..href = url
         ..download = 'boleto_rifa_octubre_${_transaccionCtrl.text}.png'
         ..click();
-      
+
       web.URL.revokeObjectURL(url);
       _mostrarSnackBar('Iniciando descarga de boleto...');
     } catch (e) {
-      _mostrarSnackBar('No se pudo descargar el boleto, intenta manualmente.', esError: true);
+      _mostrarSnackBar(
+        'No se pudo descargar el boleto, intenta manualmente.',
+        esError: true,
+      );
     }
   }
 
@@ -248,7 +261,9 @@ class _FormularioScreenState extends State<FormularioScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(mensaje),
-        backgroundColor: esError ? const Color(0xFFEB5757) : const Color(0xFF4A4A4A),
+        backgroundColor: esError
+            ? const Color(0xFFEB5757)
+            : const Color(0xFF4A4A4A),
       ),
     );
   }
@@ -388,8 +403,10 @@ class _FormularioScreenState extends State<FormularioScreen> {
           RepaintBoundary(
             key: _boletoKey,
             child: Boleto(
-              transaccion: '${DateTime.now().year}-${_transaccionCtrl.text.trim()}',
-              nombreUsuario: '${_nombreCtrl.text} ${_apellidoPaternoCtrl.text} ${_apellidoMaternoCtrl.text}',
+              transaccion:
+                  '${DateTime.now().year}-${_transaccionCtrl.text.trim()}',
+              nombreUsuario:
+                  '${_nombreCtrl.text} ${_apellidoPaternoCtrl.text} ${_apellidoMaternoCtrl.text}',
             ),
           ),
 
@@ -417,7 +434,7 @@ class _FormularioScreenState extends State<FormularioScreen> {
             ),
           ),
           const SizedBox(height: 24),
-          
+
           Row(
             children: [
               Expanded(
@@ -634,9 +651,9 @@ class _FormularioScreenState extends State<FormularioScreen> {
                     hint:
                         (_transaccionFocus.hasFocus ||
                             _transaccionCtrl.text.isNotEmpty)
-                        ? 'ej. 00000'
-                        : 'ej. ${DateTime.now().year}-00000',
-                    helper: 'Ingresa los 5 dígitos de tu recibo',
+                        ? 'ej. 000000'
+                        : 'ej. ${DateTime.now().year}-000000',
+                    helper: 'Ingresa los 6 dígitos de tu recibo',
                     controller: _transaccionCtrl,
                     focusNode: _transaccionFocus,
                     enabled: !isCargando,
@@ -649,7 +666,7 @@ class _FormularioScreenState extends State<FormularioScreen> {
                         : null,
                     inputFormatters: [
                       FilteringTextInputFormatter.digitsOnly,
-                      LengthLimitingTextInputFormatter(5),
+                      LengthLimitingTextInputFormatter(6),
                     ],
                     onChanged: (value) =>
                         setState(() => _errorTransaccion = null),
