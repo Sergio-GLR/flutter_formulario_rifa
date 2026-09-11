@@ -70,19 +70,18 @@ class _FormularioScreenState extends State<FormularioScreen> {
   Future<void> _validarTransaccion() async {
     // evaluamos que campos están vacios y actualizamos la UI
     setState(() {
-      _errorNombre = _nombreCtrl.text.isEmpty ? 'Campo requerido' : null;
-      _errorPaterno = _apellidoPaternoCtrl.text.isEmpty
+      _errorNombre = _nombreCtrl.text.trim().isEmpty ? 'Campo requerido' : null;
+      _errorPaterno = _apellidoPaternoCtrl.text.trim().isEmpty
           ? 'Campo Requerido'
           : null;
-      _errorMaterno = _apellidoMaternoCtrl.text.isEmpty
+      _errorMaterno = _apellidoMaternoCtrl.text.trim().isEmpty
           ? 'Campo Requerido'
           : null;
 
-      // Hacemos una validacion para exigir la longitud completa
-      _errorTelefono = _telefonoCtrl.text.length < 10
+      _errorTelefono = _telefonoCtrl.text.trim().length < 10
           ? 'Debe contener 10 dígitos'
           : null;
-      _errorTransaccion = _transaccionCtrl.text.length < 6
+      _errorTransaccion = _transaccionCtrl.text.trim().length < 6
           ? 'Faltan dígitos'
           : null;
     });
@@ -406,7 +405,7 @@ class _FormularioScreenState extends State<FormularioScreen> {
               transaccion:
                   '${DateTime.now().year}-${_transaccionCtrl.text.trim()}',
               nombreUsuario:
-                  '${_nombreCtrl.text} ${_apellidoPaternoCtrl.text} ${_apellidoMaternoCtrl.text}',
+                  '${_nombreCtrl.text.trim()} ${_apellidoPaternoCtrl.text.trim()} ${_apellidoMaternoCtrl.text.trim()}',
             ),
           ),
 
@@ -583,6 +582,7 @@ class _FormularioScreenState extends State<FormularioScreen> {
                         RegExp(r'[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]'),
                       ),
                       _UpperCaseTextFormatter(),
+                      _SingleSpaceTextFormatter(),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -605,6 +605,7 @@ class _FormularioScreenState extends State<FormularioScreen> {
                               RegExp(r'[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]'),
                             ),
                             _UpperCaseTextFormatter(),
+                            _SingleSpaceTextFormatter(),
                           ],
                         ),
                       ),
@@ -625,6 +626,7 @@ class _FormularioScreenState extends State<FormularioScreen> {
                               RegExp(r'[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]'),
                             ),
                             _UpperCaseTextFormatter(),
+                            _SingleSpaceTextFormatter(),
                           ],
                         ),
                       ),
@@ -1072,5 +1074,19 @@ class Boleto extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _SingleSpaceTextFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    // Bloquea cualquier intento de poner un espacio al inicio o dos espacios seguidos
+    if (newValue.text.startsWith(' ') || newValue.text.contains('  ')) {
+      return oldValue;
+    }
+    return newValue;
   }
 }
