@@ -60,7 +60,7 @@ class _FormularioScreenState extends State<FormularioScreen> {
       context: context,
       barrierDismissible:
           false, // Evita que lo cierren tocando fuera del recuadro
-      barrierColor: Colors.black87,
+      barrierColor: Colors.black12,
       builder: (BuildContext context) {
         return Dialog(
           backgroundColor: Colors.transparent,
