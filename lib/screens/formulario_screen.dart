@@ -23,13 +23,10 @@ class FormularioScreen extends StatefulWidget {
 
 class _FormularioScreenState extends State<FormularioScreen> {
   FormStatus _currentState = FormStatus.capturaInicial;
+  bool _terminosAceptados = false;
 
   // variables para controlar el estado visual de error de cada campo
-  String? _errorNombre;
-  String? _errorPaterno;
-  String? _errorMaterno;
-  String? _errorTelefono;
-  String? _errorTransaccion;
+  final _formKey = GlobalKey<FormState>();
 
   final _nombreCtrl = TextEditingController();
   final _apellidoPaternoCtrl = TextEditingController();
@@ -49,6 +46,129 @@ class _FormularioScreenState extends State<FormularioScreen> {
     _transaccionFocus.addListener(() {
       setState(() {});
     });
+
+    // Despliega el modal de terminos y condiciones justo al terminar de dibujar la pantalla
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _mostrarTerminosYCondiciones();
+      // Precarga la imagen en caché de forma silenciosa.
+      precacheImage(const AssetImage('assets/images/boleto.png'), context);
+    });
+  }
+
+  void _mostrarTerminosYCondiciones() {
+    showDialog<void>(
+      context: context,
+      barrierDismissible:
+          false, // Evita que lo cierren tocando fuera del recuadro
+      barrierColor: Colors.black87,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          child: Container(
+            constraints: const BoxConstraints(
+              maxWidth: 600, // Evita que se deforme o estire en pantallas de PC
+              maxHeight: 600,
+            ),
+            padding: const EdgeInsets.all(32),
+            decoration: ShapeDecoration(
+              color: const Color(0xFFF8F7FC),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
+              shadows: const [
+                BoxShadow(
+                  color: Colors.black12,
+                  blurRadius: 24,
+                  offset: Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      color: Color(0xFF1A1A2E),
+                      size: 28,
+                    ),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Aviso de Privacidad y Términos',
+                        style: TextStyle(
+                          color: Color(0xFF1A1A2E),
+                          fontSize: 20,
+                          fontFamily: 'Plus Jakarta Sans',
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                const Divider(color: Colors.black12, height: 1),
+                const SizedBox(height: 16),
+
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Text(
+                      'De conformidad con la Ley de Protección de Datos Personales en Posesión de Sujetos Obligados del Estado, el Municipio de Durango informa:\n\n'
+                      '1. Los datos recabados en este formulario así como la información catastral asociada a la transacción, '
+                      'serán utilizados única y exclusivamente para el registro, validación y contacto de los participantes de la Rifa Predial - Octubretón.\n\n'
+                      '2. Para que el registro sea válido, la transacción ingresada debe corresponder a un pago validado por el sistema de recaudación.\n\n'
+                      '3. El manejo de la información se realiza bajo estrictos protocolos de seguridad para proteger la privacidad del propietario del inmueble.\n\n'
+                      'Al hacer clic en "Aceptar", usted consiente el tratamiento de sus datos personales para los fines previamente descritos.',
+                      style: const TextStyle(
+                        color: Color(0xFF4A4A4A),
+                        fontSize: 14,
+                        fontFamily: 'Plus Jakarta Sans',
+                        height: 1.5,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: _SecondaryButton(
+                        text: 'No Acepto',
+                        onPressed: () {
+                          // Al no aceptar, cerramos el modal pero el estado sigue en false
+                          Navigator.of(context).pop();
+                          _mostrarSnackBar(
+                            'Para participar en la rifa, es necesario aceptar los términos.',
+                            esError: true,
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _PrimaryButton(
+                        text: 'Aceptar',
+                        onPressed: () {
+                          // Cambiamos el estado a true y cerramos el modal
+                          setState(() {
+                            _terminosAceptados = true;
+                          });
+                          Navigator.of(context).pop();
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -68,31 +188,17 @@ class _FormularioScreenState extends State<FormularioScreen> {
   Map<String, String> _datosPredio = {};
 
   Future<void> _validarTransaccion() async {
-    // evaluamos que campos están vacios y actualizamos la UI
-    setState(() {
-      _errorNombre = _nombreCtrl.text.trim().isEmpty ? 'Campo requerido' : null;
-      _errorPaterno = _apellidoPaternoCtrl.text.trim().isEmpty
-          ? 'Campo Requerido'
-          : null;
-      _errorMaterno = _apellidoMaternoCtrl.text.trim().isEmpty
-          ? 'Campo Requerido'
-          : null;
+    // Si el formulario ya está procesando una solicitud, ignoramos nuevos toques
+    if (_currentState == FormStatus.validandoApi ||
+        _currentState == FormStatus.guardando) {
+      return;
+    }
 
-      _errorTelefono = _telefonoCtrl.text.trim().length < 10
-          ? 'Debe contener 10 dígitos'
-          : null;
-      _errorTransaccion = _transaccionCtrl.text.trim().length < 6
-          ? 'Faltan dígitos'
-          : null;
-    });
-
-    // Si alguno tiene error, detenemos el proceso
-    if (_errorNombre != null ||
-        _errorPaterno != null ||
-        _errorMaterno != null ||
-        _errorTelefono != null ||
-        _errorTransaccion != null) {
-      _mostrarSnackBar('Por favor, completa los campos en rojo', esError: true);
+    if (!_formKey.currentState!.validate()) {
+      _mostrarSnackBar(
+        'Por favor, completa los campos correctamente',
+        esError: true,
+      );
       return;
     }
 
@@ -102,6 +208,7 @@ class _FormularioScreenState extends State<FormularioScreen> {
       final transaccionCompleta =
           '${DateTime.now().year}-${_transaccionCtrl.text.trim()}';
       final datos = await _apiService.validarTransaccion(transaccionCompleta);
+
       setState(() {
         _datosPredio = datos;
         _currentState = FormStatus.confirmacion;
@@ -110,11 +217,8 @@ class _FormularioScreenState extends State<FormularioScreen> {
     } catch (e) {
       setState(() {
         _currentState = FormStatus.capturaInicial;
-        // Quitamos el error del campo para no confundir visualmente
-        _errorTransaccion = null;
       });
 
-      // Limpiamos el texto del error ("Exception: ...") para que sea legible
       final mensajeError = e.toString().replaceAll('Exception: ', '');
       _mostrarSnackBar(mensajeError, esError: true);
     }
@@ -129,60 +233,91 @@ class _FormularioScreenState extends State<FormularioScreen> {
         return Dialog(
           backgroundColor: Colors.transparent,
           elevation: 0,
-          child: Container(
-            width: 593,
-            padding: const EdgeInsets.only(
-              top: 40,
-              bottom: 27,
-              left: 32,
-              right: 32,
-            ),
-            decoration: ShapeDecoration(
-              color: const Color(0xFFD9D9D9),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
+          // El widget Focus con autofocus captura los eventos del teclado globalmente
+          child: Focus(
+            autofocus: true,
+            onKeyEvent: (FocusNode node, KeyEvent event) {
+              // Si el usuario presiona la tecla Enter, confirmamos el modal
+              if (event is KeyDownEvent &&
+                  event.logicalKey == LogicalKeyboardKey.enter) {
+                Navigator.of(context).pop();
+                _registrarBoleto();
+                return KeyEventResult.handled;
+              }
+              return KeyEventResult.ignored;
+            },
+            child: Container(
+              width: MediaQuery.of(context).size.width * 0.9,
+              constraints: const BoxConstraints(maxWidth: 593),
+              padding: const EdgeInsets.only(
+                top: 40,
+                bottom: 27,
+                left: 32,
+                right: 32,
               ),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'NO. DE TRANSACCIÓN: ${DateTime.now().year}-${_transaccionCtrl.text}\nDIRECCIÓN: ${_datosPredio['direccion'] ?? 'No disponible'}',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Color(0xFF4A4A4A),
-                    fontSize: 20,
-                    fontFamily: 'Plus Jakarta Sans',
-                    fontWeight: FontWeight.w400,
+              decoration: ShapeDecoration(
+                color: const Color(0xFFD9D9D9),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  RichText(
+                    textAlign: TextAlign.center,
+                    text: TextSpan(
+                      // Estilo base para todo el texto (normal)
+                      style: const TextStyle(
+                        color: Color(0xFF4A4A4A),
+                        fontSize: 18,
+                        fontFamily: 'Plus Jakarta Sans',
+                        fontWeight: FontWeight.w400,
+                        height: 1.3,
+                      ),
+                      children: [
+                        const TextSpan(text: 'El número de transacción '),
+                        // Estilo sobrescrito para poner en negritas solo la transacción
+                        TextSpan(
+                          text: '${DateTime.now().year}-${_transaccionCtrl.text}',
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        TextSpan(
+                          text: ' está asociado a la siguiente dirección:\n\n${_datosPredio['direccion'] ?? 'No disponible'}\n\n¿Es correcta la dirección?',
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 32),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _PrimaryButton(
-                        text: 'Aceptar',
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                          _registrarBoleto();
-                        },
+                  const SizedBox(height: 32),
+                  Row(
+                    children: [
+                      // Botón principal restaurado a la izquierda
+                      Expanded(
+                        child: _PrimaryButton(
+                          text: 'Aceptar',
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            _registrarBoleto();
+                          },
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _SecondaryButton(
-                        text: 'Cancelar',
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                          setState(
-                            () => _currentState = FormStatus.capturaInicial,
-                          );
-                        },
+                      const SizedBox(width: 12),
+                      // Botón secundario restaurado a la derecha
+                      Expanded(
+                        child: _SecondaryButton(
+                          text: 'Cancelar',
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            setState(
+                              () => _currentState = FormStatus.capturaInicial,
+                            );
+                          },
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -191,8 +326,10 @@ class _FormularioScreenState extends State<FormularioScreen> {
   }
 
   Future<void> _registrarBoleto() async {
-    setState(() => _currentState = FormStatus.guardando);
+    // Previene múltiples registros si el usuario hace doble clic rápido en el modal
+    if (_currentState == FormStatus.guardando) return;
 
+    setState(() => _currentState = FormStatus.guardando);
     try {
       final transaccionCompleta =
           '${DateTime.now().year}-${_transaccionCtrl.text.trim()}';
@@ -211,9 +348,12 @@ class _FormularioScreenState extends State<FormularioScreen> {
       if (response['success'] == true) {
         setState(() => _currentState = FormStatus.exito);
 
-        // esperamos un momento para que el widget se renderice antes de capturarlo
-        Future.delayed(const Duration(milliseconds: 800), () {
-          if (mounted) _descargarBoleto();
+        // La imagen ya está en caché, solo esperamos a que el frame se dibuje
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          // Un retraso minúsculo de 150ms asegura que el RepaintBoundary esté listo
+          Future.delayed(const Duration(milliseconds: 150), () {
+            if (mounted) _descargarBoleto();
+          });
         });
       } else {
         setState(() => _currentState = FormStatus.capturaInicial);
@@ -227,6 +367,8 @@ class _FormularioScreenState extends State<FormularioScreen> {
 
   // logica para capturar y descargar usando package:web
   Future<void> _descargarBoleto() async {
+    _mostrarSnackBar('Generando tu boleto, por favor espera...');
+
     try {
       RenderRepaintBoundary boundary =
           _boletoKey.currentContext!.findRenderObject()
@@ -246,10 +388,9 @@ class _FormularioScreenState extends State<FormularioScreen> {
         ..click();
 
       web.URL.revokeObjectURL(url);
-      _mostrarSnackBar('Iniciando descarga de boleto...');
     } catch (e) {
       _mostrarSnackBar(
-        'No se pudo descargar el boleto, intenta manualmente.',
+        'No se pudo descargar el boleto, intenta tomar una captura de pantalla.',
         esError: true,
       );
     }
@@ -268,18 +409,19 @@ class _FormularioScreenState extends State<FormularioScreen> {
   }
 
   void _reiniciarFormulario() {
+    // 1. Vaciamos el texto de todos los campos
     _nombreCtrl.clear();
     _apellidoPaternoCtrl.clear();
     _apellidoMaternoCtrl.clear();
     _telefonoCtrl.clear();
     _transaccionCtrl.clear();
+
     setState(() {
+      // 2. Resetea las validaciones visuales (quita los mensajes de error en rojo)
+      _formKey.currentState?.reset();
+
+      // 3. Devolvemos la vista al estado original
       _currentState = FormStatus.capturaInicial;
-      _errorNombre = null;
-      _errorPaterno = null;
-      _errorMaterno = null;
-      _errorTelefono = null;
-      _errorTransaccion = null;
     });
   }
 
@@ -290,58 +432,65 @@ class _FormularioScreenState extends State<FormularioScreen> {
         _currentState == FormStatus.guardando;
 
     return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: RadialGradient(
-            center: Alignment(0.60, 0.20),
-            radius: 1.00,
-            colors: [Color(0xFF858585), Color(0xFF54545D), Color(0xFF4A4A4A)],
+      body: AbsorbPointer(
+        absorbing: isCargando, // Bloquea la interacción si está cargando
+        child: Container(
+          width: double.infinity,
+          height: double.infinity,
+          decoration: const BoxDecoration(
+            gradient: RadialGradient(
+              center: Alignment(0.60, 0.20),
+              radius: 1.00,
+              colors: [Color(0xFF858585), Color(0xFF54545D), Color(0xFF4A4A4A)],
+            ),
           ),
-        ),
 
-        //cambio para poder navegar por fuera del formulario (se nota mas en pc)
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: Opacity(
-                opacity: 0.03,
-                child: Container(
-                  decoration: const BoxDecoration(
-                    gradient: RadialGradient(
-                      center: Alignment(0.50, 0.50),
-                      radius: 1.03,
-                      colors: [Colors.white, Colors.transparent],
+          //cambio para poder navegar por fuera del formulario (se nota mas en pc)
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: Opacity(
+                  opacity: 0.03,
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      gradient: RadialGradient(
+                        center: Alignment(0.50, 0.50),
+                        radius: 1.03,
+                        colors: [Colors.white, Colors.transparent],
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-            // con LayoutBuilder el scroll ocupa toda la pantalla y centra el contenido
-            Positioned.fill(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  return SingleChildScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        minHeight: constraints.maxHeight,
-                      ),
-                      child: Center(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 40),
-                          child: _currentState == FormStatus.exito
-                              ? _buildBoletoExito()
-                              : _buildFormulario(isCargando),
+              // con LayoutBuilder el scroll ocupa toda la pantalla y centra el contenido
+              Positioned.fill(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minHeight: constraints.maxHeight,
+                        ),
+                        child: Center(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 40),
+                            child: _currentState == FormStatus.exito
+                                ? _buildBoletoExito()
+                                : (!_terminosAceptados
+                                      ? _buildAvisoNoAceptado() // Si no ha aceptado, bloqueamos
+                                      : _buildFormulario(
+                                          isCargando,
+                                        )), // Formulario normal
+                          ),
                         ),
                       ),
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -349,8 +498,14 @@ class _FormularioScreenState extends State<FormularioScreen> {
 
   Widget _buildBoletoExito() {
     return Container(
-      width: 407,
-      padding: const EdgeInsets.only(top: 40, bottom: 22, left: 32, right: 32),
+      width: MediaQuery.of(context).size.width * 0.9,
+      constraints: const BoxConstraints(maxWidth: 407),
+      padding: EdgeInsets.only(
+        top: 40,
+        bottom: 22,
+        left: MediaQuery.of(context).size.width < 450 ? 16 : 32,
+        right: MediaQuery.of(context).size.width < 450 ? 16 : 32,
+      ),
       decoration: BoxDecoration(
         color: const Color(0xFFE0E0EC),
         borderRadius: BorderRadius.circular(30),
@@ -452,6 +607,69 @@ class _FormularioScreenState extends State<FormularioScreen> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildAvisoNoAceptado() {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 512),
+      child: Container(
+        padding: const EdgeInsets.all(40),
+        decoration: ShapeDecoration(
+          color: const Color(0xFFF8F7FC),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          shadows: const [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 24,
+              offset: Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.privacy_tip_outlined,
+              size: 64,
+              color: Color(0xFF6B6B80),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Aviso de Privacidad Requerido',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Color(0xFF1A1A2E),
+                fontSize: 20,
+                fontFamily: 'Plus Jakarta Sans',
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Para poder registrarte en la rifa, es estrictamente necesario aceptar el aviso de privacidad y términos para el manejo de los datos catastrales y personales.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Color(0xFF4A4A4A),
+                fontSize: 14,
+                fontFamily: 'Plus Jakarta Sans',
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 32),
+            SizedBox(
+              width: 250, // Un botón más pequeño y centrado
+              child: _PrimaryButton(
+                text: 'Revisar Términos',
+                onPressed: _mostrarTerminosYCondiciones,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -565,115 +783,127 @@ class _FormularioScreenState extends State<FormularioScreen> {
             // campos del formulario
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _CustomTextField(
-                    label: 'NOMBRE (S)',
-                    hint: 'ej. MARÍA FERNANDA',
-                    helper: 'Ingresa tu nombre (s)',
-                    controller: _nombreCtrl,
-                    enabled: !isCargando,
-                    errorText: _errorNombre,
-                    onChanged: (value) => setState(() => _errorNombre = null),
-                    textCapitalization: TextCapitalization.characters,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(
-                        RegExp(r'[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]'),
-                      ),
-                      _UpperCaseTextFormatter(),
-                      _SingleSpaceTextFormatter(),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: _CustomTextField(
-                          label: 'APELLIDO PATERNO',
-                          hint: 'ej. GARCÍA',
-                          helper: 'Ingresa tu apellido paterno',
-                          controller: _apellidoPaternoCtrl,
-                          enabled: !isCargando,
-                          errorText: _errorPaterno,
-                          onChanged: (value) =>
-                              setState(() => _errorPaterno = null),
-                          textCapitalization: TextCapitalization.characters,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.allow(
-                              RegExp(r'[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]'),
-                            ),
-                            _UpperCaseTextFormatter(),
-                            _SingleSpaceTextFormatter(),
-                          ],
+              child: Form(
+                key: _formKey, // Asignamos la llave al formulario
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _CustomTextField(
+                      label: 'NOMBRE (S)',
+                      hint: 'ej. MARÍA FERNANDA',
+                      helper: 'Ingresa tu nombre (s)',
+                      controller: _nombreCtrl,
+                      enabled: !isCargando,
+                      textCapitalization: TextCapitalization.characters,
+                      validator: (value) =>
+                          value == null || value.trim().isEmpty
+                          ? 'Campo requerido'
+                          : null,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(
+                          RegExp(r'[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]'),
                         ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _CustomTextField(
-                          label: 'APELLIDO MATERNO',
-                          hint: 'ej. LÓPEZ',
-                          helper: 'Ingresa tu apellido materno',
-                          controller: _apellidoMaternoCtrl,
-                          enabled: !isCargando,
-                          errorText: _errorMaterno,
-                          onChanged: (value) =>
-                              setState(() => _errorMaterno = null),
-                          textCapitalization: TextCapitalization.characters,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.allow(
-                              RegExp(r'[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]'),
-                            ),
-                            _UpperCaseTextFormatter(),
-                            _SingleSpaceTextFormatter(),
-                          ],
+                        _UpperCaseTextFormatter(),
+                        _SingleSpaceTextFormatter(),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: _CustomTextField(
+                            label: 'APELLIDO PATERNO',
+                            hint: 'ej. GARCÍA',
+                            helper: 'Ingresa tu apellido paterno',
+                            controller: _apellidoPaternoCtrl,
+                            enabled: !isCargando,
+                            textCapitalization: TextCapitalization.characters,
+                            validator: (value) =>
+                                value == null || value.trim().isEmpty
+                                ? 'Campo requerido'
+                                : null,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(
+                                RegExp(r'[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]'),
+                              ),
+                              _UpperCaseTextFormatter(),
+                              _SingleSpaceTextFormatter(),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  _CustomTextField(
-                    label: 'TELÉFONO',
-                    hint: 'ej. 6181234567',
-                    helper: 'Ingresa tu número de teléfono a 10 dígitos',
-                    controller: _telefonoCtrl,
-                    enabled: !isCargando,
-                    keyboardType: TextInputType.phone,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                      LengthLimitingTextInputFormatter(10),
-                    ],
-                    errorText: _errorTelefono,
-                    onChanged: (value) => setState(() => _errorTelefono = null),
-                  ),
-                  const SizedBox(height: 16),
-                  _CustomTextField(
-                    label: 'NO. DE TRANSACCIÓN',
-                    hint:
-                        (_transaccionFocus.hasFocus ||
-                            _transaccionCtrl.text.isNotEmpty)
-                        ? 'ej. 000000'
-                        : 'ej. ${DateTime.now().year}-000000',
-                    helper: 'Ingresa los 6 dígitos de tu recibo',
-                    controller: _transaccionCtrl,
-                    focusNode: _transaccionFocus,
-                    enabled: !isCargando,
-                    errorText: _errorTransaccion,
-                    keyboardType: TextInputType.number,
-                    prefixText:
-                        (_transaccionFocus.hasFocus ||
-                            _transaccionCtrl.text.isNotEmpty)
-                        ? '${DateTime.now().year}-'
-                        : null,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                      LengthLimitingTextInputFormatter(6),
-                    ],
-                    onChanged: (value) =>
-                        setState(() => _errorTransaccion = null),
-                  ),
-                ],
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _CustomTextField(
+                            label: 'APELLIDO MATERNO',
+                            hint: 'ej. LÓPEZ',
+                            helper: 'Ingresa tu apellido materno',
+                            controller: _apellidoMaternoCtrl,
+                            enabled: !isCargando,
+                            textCapitalization: TextCapitalization.characters,
+                            validator: (value) =>
+                                value == null || value.trim().isEmpty
+                                ? 'Campo requerido'
+                                : null,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(
+                                RegExp(r'[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]'),
+                              ),
+                              _UpperCaseTextFormatter(),
+                              _SingleSpaceTextFormatter(),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    _CustomTextField(
+                      label: 'TELÉFONO',
+                      hint: 'ej. 6181234567',
+                      helper: 'Ingresa tu número a 10 dígitos',
+                      controller: _telefonoCtrl,
+                      enabled: !isCargando,
+                      keyboardType: TextInputType.phone,
+                      validator: (value) =>
+                          value == null || value.trim().length < 10
+                          ? 'Debe contener 10 dígitos'
+                          : null,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(10),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    _CustomTextField(
+                      label: 'NO. DE TRANSACCIÓN',
+                      hint:
+                          (_transaccionFocus.hasFocus ||
+                              _transaccionCtrl.text.isNotEmpty)
+                          ? 'ej. 000000'
+                          : 'ej. ${DateTime.now().year}-000000',
+                      helper: 'Ingresa los 6 dígitos de tu recibo',
+                      controller: _transaccionCtrl,
+                      focusNode: _transaccionFocus,
+                      enabled: !isCargando,
+                      keyboardType: TextInputType.number,
+                      prefixText:
+                          (_transaccionFocus.hasFocus ||
+                              _transaccionCtrl.text.isNotEmpty)
+                          ? '${DateTime.now().year}-'
+                          : null,
+                      validator: (value) =>
+                          value == null || value.trim().length < 6
+                          ? 'Faltan dígitos'
+                          : null,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(6),
+                      ],
+                      textInputAction: TextInputAction.done,
+                      onFieldSubmitted: (_) => _validarTransaccion(),
+                    ),
+                  ],
+                ),
               ),
             ),
             Padding(
@@ -717,12 +947,14 @@ class _CustomTextField extends StatelessWidget {
   final TextEditingController controller;
   final bool enabled;
   final TextInputType? keyboardType;
-  final String? errorText;
   final List<TextInputFormatter>? inputFormatters;
-  final ValueChanged<String>? onChanged;
   final TextCapitalization textCapitalization;
   final FocusNode? focusNode;
   final String? prefixText;
+  final String? Function(String?)? validator; // propiedad para validar
+  final ValueChanged<String>?
+  onFieldSubmitted; // variable para manejar el evento de envío del campo
+  final TextInputAction? textInputAction; // accion del teclado
 
   const _CustomTextField({
     required this.label,
@@ -731,18 +963,17 @@ class _CustomTextField extends StatelessWidget {
     required this.controller,
     this.enabled = true,
     this.keyboardType,
-    this.errorText,
     this.inputFormatters,
-    this.onChanged,
     this.textCapitalization = TextCapitalization.none,
     this.focusNode,
     this.prefixText,
+    this.validator,
+    this.onFieldSubmitted,
+    this.textInputAction,
   });
 
   @override
   Widget build(BuildContext context) {
-    final hasError = errorText != null;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -757,14 +988,20 @@ class _CustomTextField extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 6),
-        TextField(
+        TextFormField(
           controller: controller,
           focusNode: focusNode,
           enabled: enabled,
           keyboardType: keyboardType,
           inputFormatters: inputFormatters,
-          onChanged: onChanged,
           textCapitalization: textCapitalization,
+          validator: validator, // Le pasamos el validador
+          onFieldSubmitted: onFieldSubmitted, // Lo pasamos al TextFormField
+          textInputAction:
+              textInputAction ??
+              TextInputAction.next, // Por defecto pasa al siguiente
+          autovalidateMode: AutovalidateMode
+              .onUserInteraction, // Valida conforme el usuario escribe
           style: const TextStyle(
             color: Color(0xFF1A1A2E),
             fontSize: 14,
@@ -773,6 +1010,17 @@ class _CustomTextField extends StatelessWidget {
           decoration: InputDecoration(
             hintText: hint,
             prefixText: prefixText,
+            helperText: helper, // Flutter maneja el helper nativamente
+            helperStyle: const TextStyle(
+              color: Color(0xFFAAAABC),
+              fontSize: 12,
+              fontFamily: 'Plus Jakarta Sans',
+            ),
+            errorStyle: const TextStyle(
+              color: Color(0xFFEB5757),
+              fontSize: 12,
+              fontFamily: 'Plus Jakarta Sans',
+            ),
             prefixStyle: const TextStyle(
               color: Color(0xFF1A1A2E),
               fontSize: 14,
@@ -785,45 +1033,27 @@ class _CustomTextField extends StatelessWidget {
               vertical: 14,
             ),
             filled: true,
-            fillColor: hasError
-                ? const Color(0xFFEB5757).withValues(alpha: 0.08)
-                : Colors.white,
+            fillColor: Colors.white,
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide(
-                color: hasError
-                    ? const Color(0xFFEB5757)
-                    : const Color(0xFFE0E0EC),
-              ),
+              borderSide: const BorderSide(color: Color(0xFFE0E0EC)),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide(
-                color: hasError
-                    ? const Color(0xFFEB5757)
-                    : const Color(0xFFC4B5FD),
-              ),
+              borderSide: const BorderSide(color: Color(0xFFC4B5FD)),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Color(0xFFEB5757)),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Color(0xFFEB5757)),
             ),
             disabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
               borderSide: const BorderSide(color: Color(0xFFE0E0EC)),
             ),
-            suffixIcon: hasError
-                ? const Icon(
-                    Icons.error_outline,
-                    color: Color(0xFFEB5757),
-                    size: 20,
-                  )
-                : null,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          hasError ? errorText! : helper,
-          style: TextStyle(
-            color: hasError ? const Color(0xFFEB5757) : const Color(0xFFAAAABC),
-            fontSize: 12,
-            fontFamily: 'Plus Jakarta Sans',
           ),
         ),
       ],
@@ -1090,3 +1320,6 @@ class _SingleSpaceTextFormatter extends TextInputFormatter {
     return newValue;
   }
 }
+
+// el numero de transaccion esta asociada a la sisguiente direccion,
+// deseas editarlo?
