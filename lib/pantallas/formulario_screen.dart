@@ -290,8 +290,13 @@ class _FormularioScreenState extends State<FormularioScreen> {
                                     boletoKey: _boletoKey,
                                     transaccion:
                                         '${DateTime.now().year}-${_transaccionCtrl.text.trim()}',
-                                    nombreUsuario:
-                                        '${_nombreCtrl.text.trim()} ${_apellidoPaternoCtrl.text.trim()} ${_apellidoMaternoCtrl.text.trim()}',
+                                    // Solo une las partes con texto: sin apellido
+                                    // materno no queda un espacio al final
+                                    nombreUsuario: [
+                                      _nombreCtrl.text.trim(),
+                                      _apellidoPaternoCtrl.text.trim(),
+                                      _apellidoMaternoCtrl.text.trim(),
+                                    ].where((parte) => parte.isNotEmpty).join(' '),
                                     onDescargar: _descargarBoleto,
                                     onAceptar: _reiniciarFormulario,
                                   )

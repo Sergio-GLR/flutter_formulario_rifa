@@ -154,10 +154,10 @@ class TarjetaFormulario extends StatelessWidget {
                       controller: nombreCtrl,
                       enabled: !isCargando,
                       textCapitalization: TextCapitalization.characters,
-                      validator: Validadores.validarTransaccion,
+                      validator: Validadores.validarRequerido,
                       inputFormatters: [
                         FilteringTextInputFormatter.allow(
-                          RegExp(r'[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]'),
+                          RegExp(r'[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]'),
                         ),
                         UpperCaseTextFormatter(),
                         SingleSpaceTextFormatter(),
@@ -178,7 +178,7 @@ class TarjetaFormulario extends StatelessWidget {
                             validator: Validadores.validarRequerido,
                             inputFormatters: [
                               FilteringTextInputFormatter.allow(
-                                RegExp(r'[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]'),
+                                RegExp(r'[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]'),
                               ),
                               UpperCaseTextFormatter(),
                               SingleSpaceTextFormatter(),
@@ -190,14 +190,16 @@ class TarjetaFormulario extends StatelessWidget {
                           child: CustomTextField(
                             label: 'APELLIDO MATERNO',
                             hint: 'ej. LÓPEZ',
-                            helper: 'Ingresa tu apellido materno',
+                            helper: 'Opcional si solo tienes un apellido',
                             controller: apellidoMaternoCtrl,
                             enabled: !isCargando,
                             textCapitalization: TextCapitalization.characters,
-                            validator: Validadores.validarRequerido,
+                            // Opcional: hay personas con un solo apellido.
+                            // La base de datos ya lo guarda como NULL.
+                            validator: null,
                             inputFormatters: [
                               FilteringTextInputFormatter.allow(
-                                RegExp(r'[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]'),
+                                RegExp(r'[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]'),
                               ),
                               UpperCaseTextFormatter(),
                               SingleSpaceTextFormatter(),
