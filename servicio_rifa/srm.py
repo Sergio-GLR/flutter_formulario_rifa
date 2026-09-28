@@ -108,11 +108,22 @@ class ClienteSRM:
             except ValueError as e:  # respuesta que no es JSON
                 raise SRMNoDisponible(f"Respuesta no JSON del SRM (HTTP {r.status_code}): "
                                       f"{self._fragmento(r, cuerpo['signature'])}") from e
+            except requests.RequestException as e:
+                # Cualquier otro error de requests (respuesta cortada, mal
+                # comprimida, demasiadas redirecciones...). No se reintenta:
+                # el SRM sí contestó, pero algo salió mal a medio camino.
+                raise SRMNoDisponible(f"Error al leer la respuesta del SRM: "
+                                      f"{type(e).__name__}") from e
         else:
             raise SRMNoDisponible("El SRM no respondió tras 2 intentos") from ultimo_error
 
         if isinstance(datos, dict) and "error" in datos:
             err = datos["error"] or {}
+            if not isinstance(err, dict):
+                # El contrato dice {"error": {"codigo", "mensaje"}}; otra forma
+                # no se puede interpretar como rechazo de negocio.
+                raise SRMNoDisponible(f"'error' del SRM con forma desconocida: "
+                                      f"{type(err).__name__}")
             raise TransaccionRechazada(err.get("codigo", "?"), err.get("mensaje", ""))
 
         resp = datos.get("response") if isinstance(datos, dict) else None

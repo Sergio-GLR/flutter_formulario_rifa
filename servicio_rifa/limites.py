@@ -7,12 +7,17 @@ pueden compartir una misma IP y se bloquearían entre sí.
 
 Es un límite en memoria: suficiente para un solo proceso del servidor. Si
 algún día se corren varios procesos, cada uno lleva su propia cuenta.
+
+Las IPv6 se cuentan por red /64: es lo que recibe UNA conexión doméstica, y
+contar dirección por dirección dejaría cambiar de IP en cada intento.
 """
 
 import ipaddress
 import threading
 import time
 from collections import defaultdict, deque
+
+PREFIJO_IPV6 = 64
 
 
 class LimiteIntentos:
@@ -24,13 +29,41 @@ class LimiteIntentos:
         self._reloj = reloj
         self._intentos = defaultdict(deque)
         self._candado = threading.Lock()
+        self._ultima_limpieza = reloj()
 
     def exenta(self, ip: str) -> bool:
         try:
             direccion = ipaddress.ip_address(ip)
         except ValueError:
             return False
+        if direccion.version == 6 and direccion.ipv4_mapped:
+            direccion = direccion.ipv4_mapped
         return any(direccion in red for red in self.redes_exentas)
+
+    @staticmethod
+    def _clave(ip: str) -> str:
+        """IPv4 -> la dirección; IPv6 -> su red /64 (una IPv4 escrita como
+        IPv6, ::ffff:a.b.c.d, cuenta como la IPv4)."""
+        try:
+            direccion = ipaddress.ip_address(ip)
+        except ValueError:
+            return ip
+        if direccion.version == 6:
+            if direccion.ipv4_mapped:
+                return str(direccion.ipv4_mapped)
+            return str(ipaddress.ip_network(f"{direccion}/{PREFIJO_IPV6}", strict=False))
+        return str(direccion)
+
+    def _limpiar(self, ahora):
+        """Olvida las IPs sin intentos dentro de la ventana, una vez por
+        ventana: sin esto el diccionario crece con cada IP que llegó alguna vez."""
+        if ahora - self._ultima_limpieza < self.ventana:
+            return
+        vencidas = [k for k, cola in self._intentos.items()
+                    if not cola or ahora - cola[-1] >= self.ventana]
+        for k in vencidas:
+            del self._intentos[k]
+        self._ultima_limpieza = ahora
 
     def permitir(self, ip: str) -> bool:
         """Registra un intento y dice si todavía está dentro del límite."""
@@ -38,7 +71,8 @@ class LimiteIntentos:
             return True
         ahora = self._reloj()
         with self._candado:
-            cola = self._intentos[ip]
+            self._limpiar(ahora)
+            cola = self._intentos[self._clave(ip)]
             while cola and ahora - cola[0] >= self.ventana:
                 cola.popleft()
             if len(cola) >= self.maximo:

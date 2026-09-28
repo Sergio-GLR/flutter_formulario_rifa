@@ -24,6 +24,7 @@ import re
 from datetime import date
 
 from flask import Flask, jsonify, request
+from werkzeug.exceptions import HTTPException
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from bd import BDNoDisponible, ClienteSupabase
@@ -73,6 +74,17 @@ def _nombre(datos, campo, obligatorio=True, etiqueta=None):
     if len(valor) > LARGO_MAX_NOMBRE or not RE_NOMBRE.match(valor):
         raise DatosInvalidos(f"{etiqueta or campo} solo puede contener letras y espacios.")
     return valor
+
+
+def _cuerpo():
+    """El JSON de la petición, que debe ser un objeto. Sin cuerpo (o sin
+    JSON válido) se trata como vacío: cada campo avisa que es obligatorio."""
+    datos = request.get_json(silent=True)
+    if datos is None:
+        return {}
+    if not isinstance(datos, dict):
+        raise DatosInvalidos("La petición no tiene el formato correcto.")
+    return datos
 
 
 def _txca_y_fecha(datos):
@@ -169,13 +181,22 @@ def crear_app(srm=None, bd=None, limite=None, config=None):
         log.error("Supabase no disponible: %s", e)
         return error(MSG_NO_DISPONIBLE, 503)
 
+    @app.errorhandler(Exception)
+    def _inesperado(e):
+        # Red de seguridad: cualquier error no previsto responde JSON (el
+        # formulario solo sabe mostrar "mensaje"), nunca la página HTML de Flask.
+        if isinstance(e, HTTPException):
+            return e  # 404, 405...: los maneja Flask como siempre
+        log.exception("Error inesperado en %s", request.path)
+        return error(MSG_NO_DISPONIBLE, 500)
+
     @app.get("/api/salud")
     def salud():
         return jsonify(ok=True)
 
     @app.post("/api/validar")
     def validar():
-        datos = request.get_json(silent=True) or {}
+        datos = _cuerpo()
         txca, fecha = _txca_y_fecha(datos)
         predio = verificar_pago(txca, fecha)
         # Solo la dirección, para que el ciudadano confirme que es su predio.
@@ -184,7 +205,7 @@ def crear_app(srm=None, bd=None, limite=None, config=None):
 
     @app.post("/api/registrar")
     def registrar():
-        datos = request.get_json(silent=True) or {}
+        datos = _cuerpo()
         txca, fecha = _txca_y_fecha(datos)
         nombre = _nombre(datos, "nombre", etiqueta="El nombre")
         paterno = _nombre(datos, "apellido_paterno", etiqueta="El apellido paterno")
