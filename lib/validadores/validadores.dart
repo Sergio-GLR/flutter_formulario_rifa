@@ -1,4 +1,8 @@
 class Validadores {
+  //largo máximo de nombre y apellidos: el servicio rechaza más
+  //(LARGO_MAX_NOMBRE en servicio_rifa/app.py; cambiar ambos a la vez)
+  static const int largoMaxNombre = 60;
+
   //validar que un campo de texto no esté vacío o contenga solo espacios
   static String? validarRequerido(String? value, {String mensaje = 'Campo requerido'}) {
     if (value == null || value.trim().isEmpty){

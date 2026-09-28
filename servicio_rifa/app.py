@@ -48,7 +48,7 @@ MSG_NO_DISPONIBLE = "El servicio no está disponible en este momento. Intenta de
 RE_TXCA = re.compile(r"^\d{4}-\d{1,10}$", re.ASCII)  # la API acepta ^\d{4}-\d+$
 RE_TELEFONO = re.compile(r"^\d{10}$", re.ASCII)
 RE_NOMBRE = re.compile(r"^[A-ZÁÉÍÓÚÜÑ]+( [A-ZÁÉÍÓÚÜÑ]+)*$")
-LARGO_MAX_NOMBRE = 60
+LARGO_MAX_NOMBRE = 60  # igual que Validadores.largoMaxNombre en el formulario
 
 
 class DatosInvalidos(Exception):
@@ -71,7 +71,10 @@ def _nombre(datos, campo, obligatorio=True, etiqueta=None):
     valor = _texto(datos, campo, obligatorio).upper()
     if not valor:
         return None
-    if len(valor) > LARGO_MAX_NOMBRE or not RE_NOMBRE.match(valor):
+    if len(valor) > LARGO_MAX_NOMBRE:
+        raise DatosInvalidos(f"{etiqueta or campo} no puede tener más de "
+                             f"{LARGO_MAX_NOMBRE} caracteres.")
+    if not RE_NOMBRE.match(valor):
         raise DatosInvalidos(f"{etiqueta or campo} solo puede contener letras y espacios.")
     return valor
 
