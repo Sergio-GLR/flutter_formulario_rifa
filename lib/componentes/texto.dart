@@ -135,6 +135,29 @@ class UpperCaseTextFormatter extends TextInputFormatter {
   }
 }
 
+// Escribe la fecha como DD/MM/AAAA: solo acepta dígitos y pone las diagonales
+// solo (el ciudadano teclea 03092026 y ve 03/09/2026).
+class FechaTextFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    var digitos = newValue.text.replaceAll(RegExp(r'\D'), '');
+    if (digitos.length > 8) digitos = digitos.substring(0, 8);
+    final texto = StringBuffer();
+    for (var i = 0; i < digitos.length; i++) {
+      if (i == 2 || i == 4) texto.write('/');
+      texto.write(digitos[i]);
+    }
+    final resultado = texto.toString();
+    return TextEditingValue(
+      text: resultado,
+      selection: TextSelection.collapsed(offset: resultado.length),
+    );
+  }
+}
+
 class SingleSpaceTextFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(

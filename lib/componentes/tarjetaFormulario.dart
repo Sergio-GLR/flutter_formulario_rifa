@@ -13,6 +13,7 @@ class TarjetaFormulario extends StatelessWidget {
   final TextEditingController apellidoMaternoCtrl;
   final TextEditingController telefonoCtrl;
   final TextEditingController transaccionCtrl;
+  final TextEditingController fechaPagoCtrl;
   final FocusNode transaccionFocus;
   final bool isCargando;
   final VoidCallback onAceptar;
@@ -26,6 +27,7 @@ class TarjetaFormulario extends StatelessWidget {
     required this.apellidoMaternoCtrl,
     required this.telefonoCtrl,
     required this.transaccionCtrl,
+    required this.fechaPagoCtrl,
     required this.transaccionFocus,
     required this.isCargando,
     required this.onAceptar,
@@ -245,6 +247,19 @@ class TarjetaFormulario extends StatelessWidget {
                         FilteringTextInputFormatter.digitsOnly,
                         LengthLimitingTextInputFormatter(6),
                       ],
+                    ),
+                    const SizedBox(height: 16),
+                    // Segundo dato del recibo: evita que alguien registre un
+                    // folio ajeno. El servicio la compara con la del SRM.
+                    CustomTextField(
+                      label: 'FECHA DE PAGO',
+                      hint: 'DD/MM/AAAA',
+                      helper: 'Como aparece en tu recibo de predial',
+                      controller: fechaPagoCtrl,
+                      enabled: !isCargando,
+                      keyboardType: TextInputType.number,
+                      validator: Validadores.validarFechaPago,
+                      inputFormatters: [FechaTextFormatter()],
                       textInputAction: TextInputAction.done,
                       onFieldSubmitted: (_) => onAceptar(),
                     ),

@@ -4,8 +4,9 @@
 //     flutter test test/revision_test.dart
 //
 // Convención (igual que en script_boletos):
-//   * group 'FALLA ...'   -> documenta un defecto encontrado. HOY FALLA a
-//     propósito; debe pasar cuando se corrija.
+//   * group 'FALLA ...'   -> documenta un defecto encontrado en la revisión.
+//     Fallaba con el código original; debe pasar ya corregido. Se conserva
+//     como protección para que el defecto no regrese.
 //   * group 'GUARDIA ...' -> comportamiento correcto hoy. HOY PASA; sirve para
 //     detectar regresiones mientras se hacen las correcciones.
 //
@@ -18,6 +19,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flutter_formulario_rifa/componentes/tarjetaFormulario.dart';
+import 'package:flutter_formulario_rifa/componentes/texto.dart';
 import 'package:flutter_formulario_rifa/validadores/validadores.dart';
 
 // Orden de los campos en TarjetaFormulario
@@ -26,12 +28,13 @@ const int kApellidoPaterno = 1;
 const int kApellidoMaterno = 2;
 const int kTelefono = 3;
 const int kTransaccion = 4;
+const int kFechaPago = 5;
 
 /// Monta la tarjeta del formulario sola (sin Supabase ni API) y devuelve la
 /// llave del Form para poder validarlo.
 Future<GlobalKey<FormState>> montarFormulario(WidgetTester tester) async {
   final formKey = GlobalKey<FormState>();
-  final ctrls = List.generate(5, (_) => TextEditingController());
+  final ctrls = List.generate(6, (_) => TextEditingController());
   final focus = FocusNode();
   addTearDown(() {
     for (final c in ctrls) {
@@ -56,6 +59,7 @@ Future<GlobalKey<FormState>> montarFormulario(WidgetTester tester) async {
             apellidoMaternoCtrl: ctrls[kApellidoMaterno],
             telefonoCtrl: ctrls[kTelefono],
             transaccionCtrl: ctrls[kTransaccion],
+            fechaPagoCtrl: ctrls[kFechaPago],
             transaccionFocus: focus,
             isCargando: false,
             onAceptar: () {},
@@ -94,12 +98,14 @@ Future<void> llenarFormulario(
   String materno = 'LOPEZ',
   String telefono = '6181234567',
   String transaccion = '337308',
+  String fechaPago = '03092026', // el formatter la deja como 03/09/2026
 }) async {
   await escribir(tester, kNombre, nombre);
   await escribir(tester, kApellidoPaterno, paterno);
   await escribir(tester, kApellidoMaterno, materno);
   await escribir(tester, kTelefono, telefono);
   await escribir(tester, kTransaccion, transaccion);
+  await escribir(tester, kFechaPago, fechaPago);
 }
 
 void main() {
@@ -162,6 +168,48 @@ void main() {
       }
       expect(usos, isEmpty,
           reason: 'Estos archivos leen secretos del SRM desde la app: $usos');
+    });
+  });
+
+  // ============================================ fecha de pago (servicio interno)
+  group('GUARDIA: fecha de pago', () {
+    test('el formatter pone las diagonales y solo acepta dígitos', () {
+      final f = FechaTextFormatter();
+      String aplicar(String t) => f
+          .formatEditUpdate(TextEditingValue.empty, TextEditingValue(text: t))
+          .text;
+      expect(aplicar('03092026'), '03/09/2026');
+      expect(aplicar('0309'), '03/09');
+      expect(aplicar('03/09/2026'), '03/09/2026');
+      expect(aplicar('03a09b2026c'), '03/09/2026');
+      expect(aplicar('0309202699'), '03/09/2026');
+    });
+
+    test('solo acepta fechas reales y no futuras', () {
+      final hoy = DateTime(2026, 9, 28);
+      String? v(String t) => Validadores.validarFechaPago(t, hoy: hoy);
+      expect(v('03/09/2026'), isNull);
+      expect(v('28/09/2026'), isNull);
+      expect(v(''), 'Campo requerido');
+      expect(v('03/09'), 'Fecha no válida (DD/MM/AAAA)');
+      expect(v('31/02/2026'), 'Fecha no válida (DD/MM/AAAA)');
+      expect(v('00/09/2026'), 'Fecha no válida (DD/MM/AAAA)');
+      expect(v('29/09/2026'), 'La fecha no puede ser futura');
+      expect(Validadores.parsearFecha('03/09/2026'), DateTime(2026, 9, 3));
+    });
+
+    testWidgets('el formulario exige la fecha de pago', (tester) async {
+      final formKey = await montarFormulario(tester);
+      await llenarFormulario(tester, fechaPago: '');
+      expect(formKey.currentState!.validate(), isFalse);
+      await tester.pump();
+      expect(find.text('Campo requerido'), findsOneWidget);
+    });
+
+    testWidgets('al escribir la fecha se formatea sola', (tester) async {
+      await montarFormulario(tester);
+      await escribir(tester, kFechaPago, '03092026');
+      expect(textoDe(tester, kFechaPago), '03/09/2026');
     });
   });
 

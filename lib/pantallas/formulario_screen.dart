@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../servicios/api_municipio_service.dart';
-import '../servicios/supabase_service.dart';
+import '../servicios/servicio_rifa.dart';
 import '../servicios/descargarBoleto.dart';
+import '../validadores/validadores.dart';
 
 import '../componentes/terminos.dart';
 import '../componentes/confirmacion.dart';
@@ -31,6 +31,7 @@ class _FormularioScreenState extends State<FormularioScreen> {
   final _apellidoMaternoCtrl = TextEditingController();
   final _telefonoCtrl = TextEditingController();
   final _transaccionCtrl = TextEditingController();
+  final _fechaPagoCtrl = TextEditingController();
 
   late FocusNode _transaccionFocus;
 
@@ -87,13 +88,21 @@ class _FormularioScreenState extends State<FormularioScreen> {
     _apellidoMaternoCtrl.dispose();
     _telefonoCtrl.dispose();
     _transaccionCtrl.dispose();
+    _fechaPagoCtrl.dispose();
     super.dispose();
   }
 
-  final _apiService = ApiMunicipioService();
-  final _supabaseService = SupabaseService();
+  // Toda la comunicación pasa por el servicio interno: la app ya no conoce
+  // el token/salt del SRM ni ninguna clave de Supabase.
+  final _servicio = ServicioRifa();
 
-  Map<String, String> _datosPredio = {};
+  // Datos que el ciudadano confirmó en el modal; el registro usa exactamente estos
+  String _txcaValidada = '';
+  DateTime? _fechaValidada;
+  String _direccion = '';
+
+  String _mensajeDe(Object e) =>
+      e is ErrorServicio ? e.mensaje : ServicioRifa.msgInesperado;
 
   Future<void> _validarTransaccion() async {
     // Si el formulario ya está procesando una solicitud, ignoramos nuevos toques
@@ -115,20 +124,27 @@ class _FormularioScreenState extends State<FormularioScreen> {
     try {
       final transaccionCompleta =
           '${DateTime.now().year}-${_transaccionCtrl.text.trim()}';
-      final datos = await _apiService.validarTransaccion(transaccionCompleta);
+      // Ya pasó el validador del formulario, así que la fecha es válida
+      final fechaPago = Validadores.parsearFecha(_fechaPagoCtrl.text)!;
+      final direccion = await _servicio.validar(
+        transaccion: transaccionCompleta,
+        fechaPago: fechaPago,
+      );
+      if (!mounted) return;
 
       setState(() {
-        _datosPredio = datos;
+        _txcaValidada = transaccionCompleta;
+        _fechaValidada = fechaPago;
+        _direccion = direccion;
         _currentState = FormStatus.confirmacion;
       });
       _mostrarModalConfirmacion();
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _currentState = FormStatus.capturaInicial;
       });
-
-      final mensajeError = e.toString().replaceAll('Exception: ', '');
-      _mostrarSnackBar(mensajeError, esError: true);
+      _mostrarSnackBar(_mensajeDe(e), esError: true);
     }
   }
 
@@ -139,8 +155,8 @@ class _FormularioScreenState extends State<FormularioScreen> {
       barrierColor: Colors.black54,
       builder: (BuildContext context) {
         return ConfirmacionDialog(
-          transaccion: '${DateTime.now().year}-${_transaccionCtrl.text.trim()}',
-          direccion: _datosPredio['direccion'] ?? 'No disponible',
+          transaccion: _txcaValidada,
+          direccion: _direccion,
           onConfirmar: () {
             Navigator.of(context).pop();
             _registrarBoleto();
@@ -161,37 +177,28 @@ class _FormularioScreenState extends State<FormularioScreen> {
 
     setState(() => _currentState = FormStatus.guardando);
     try {
-      final transaccionCompleta =
-          '${DateTime.now().year}-${_transaccionCtrl.text.trim()}';
-
-      final response = await _supabaseService.registrarBoleto(
-        transaccion: transaccionCompleta,
+      // El servicio vuelve a verificar con el SRM y toma de ahí los datos del
+      // predio; la app ya no los envía.
+      await _servicio.registrar(
+        transaccion: _txcaValidada,
+        fechaPago: _fechaValidada!,
         nombre: _nombreCtrl.text.trim(),
         apellidoPaterno: _apellidoPaternoCtrl.text.trim(),
         apellidoMaterno: _apellidoMaternoCtrl.text.trim(),
         telefono: _telefonoCtrl.text.trim(),
-        clave: _datosPredio['claveCatastral'] ?? '',
-        propietario: _datosPredio['propietario'] ?? '',
-        direccion: _datosPredio['direccion'] ?? '',
       );
+      if (!mounted) return;
 
-      if (response['success'] == true) {
-        setState(() => _currentState = FormStatus.exito);
-
-        // La imagen ya está en caché, solo esperamos a que el frame se dibuje
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          // Un retraso minúsculo de 150ms asegura que el RepaintBoundary esté listo
-          Future.delayed(const Duration(milliseconds: 150), () {
-            if (mounted) _descargarBoleto();
-          });
-        });
-      } else {
-        setState(() => _currentState = FormStatus.capturaInicial);
-        _mostrarSnackBar(response['message'], esError: true);
-      }
+      // Sin descarga automática: en los módulos del municipio el equipo es
+      // compartido y el PNG (nombre + folio) quedaría para la siguiente
+      // persona. El ciudadano ve su boleto en pantalla y puede usar el
+      // botón "Descargar" si lo quiere.
+      setState(() => _currentState = FormStatus.exito);
     } catch (e) {
+      if (!mounted) return;
       setState(() => _currentState = FormStatus.capturaInicial);
-      _mostrarSnackBar('Error de conexión: $e', esError: true);
+      // Mensaje amigable del servicio (nunca el error técnico)
+      _mostrarSnackBar(_mensajeDe(e), esError: true);
     }
   }
 
@@ -225,6 +232,10 @@ class _FormularioScreenState extends State<FormularioScreen> {
     _apellidoMaternoCtrl.clear();
     _telefonoCtrl.clear();
     _transaccionCtrl.clear();
+    _fechaPagoCtrl.clear();
+    _txcaValidada = '';
+    _fechaValidada = null;
+    _direccion = '';
 
     setState(() {
       // 2. Resetea las validaciones visuales (quita los mensajes de error en rojo)
@@ -314,6 +325,7 @@ class _FormularioScreenState extends State<FormularioScreen> {
                                               _apellidoMaternoCtrl,
                                           telefonoCtrl: _telefonoCtrl,
                                           transaccionCtrl: _transaccionCtrl,
+                                          fechaPagoCtrl: _fechaPagoCtrl,
                                           transaccionFocus: _transaccionFocus,
                                           isCargando: isCargando,
                                           onAceptar: _validarTransaccion,
