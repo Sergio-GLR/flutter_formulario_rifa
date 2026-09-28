@@ -47,6 +47,9 @@ MSG_NO_DISPONIBLE = "El servicio no está disponible en este momento. Intenta de
 # mismo teléfono escrito con otros dígitos esquivaría el límite de boletos.
 RE_TXCA = re.compile(r"^\d{4}-\d{1,10}$", re.ASCII)  # la API acepta ^\d{4}-\d+$
 RE_TELEFONO = re.compile(r"^\d{10}$", re.ASCII)
+# date.fromisoformat (Python 3.11+) también acepta 20260903 o 2026-W36-4;
+# el contrato es AAAA-MM-DD y no debe depender de la versión de Python.
+RE_FECHA = re.compile(r"^\d{4}-\d{2}-\d{2}$", re.ASCII)
 RE_NOMBRE = re.compile(r"^[A-ZÁÉÍÓÚÜÑ]+( [A-ZÁÉÍÓÚÜÑ]+)*$")
 LARGO_MAX_NOMBRE = 60  # igual que Validadores.largoMaxNombre en el formulario
 
@@ -94,8 +97,11 @@ def _txca_y_fecha(datos):
     txca = _texto(datos, "txca")
     if not RE_TXCA.match(txca):
         raise DatosInvalidos("El número de transacción no tiene el formato correcto.")
+    texto_fecha = _texto(datos, "fecha_pago")
     try:
-        fecha = date.fromisoformat(_texto(datos, "fecha_pago"))
+        if not RE_FECHA.match(texto_fecha):
+            raise ValueError(texto_fecha)
+        fecha = date.fromisoformat(texto_fecha)
     except ValueError:
         raise DatosInvalidos("La fecha de pago no es válida.") from None
     return txca, fecha
