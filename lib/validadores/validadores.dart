@@ -16,7 +16,9 @@ class Validadores {
     if(value == null || value.trim().isEmpty){
       return 'Campo requerido';
     }
-    if (value.trim().length < 10) {
+    // No basta medir el largo: el autocompletado del navegador o pegar texto
+    // pueden saltarse el filtro del campo. El servicio exige 10 dígitos 0-9.
+    if (!RegExp(r'^[0-9]{10}$').hasMatch(value.trim())) {
       return 'Debe contener 10 dígitos';
     }
     return null;
@@ -55,6 +57,9 @@ class Validadores {
   static String? validarTransaccion(String? value) {
     if (value == null || value.trim().isEmpty){
       return 'Campo requerido';
+    }
+    if (!RegExp(r'^[0-9]+$').hasMatch(value.trim())) {
+      return 'Solo se permiten dígitos';
     }
     if (value.trim().length < 6){
       return 'Faltan dígitos';
