@@ -1,30 +1,47 @@
-// This is a basic Flutter widget test.
+// Prueba de humo de la app completa: arranca, muestra los términos y, según
+// la respuesta del ciudadano, el formulario o el aviso. No llama al servicio.
 //
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
+//     flutter test test/widget_test.dart
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:flutter_formulario_rifa/componentes/tarjetaFormulario.dart';
 import 'package:flutter_formulario_rifa/main.dart';
 
+Future<void> arrancarApp(WidgetTester tester) async {
+  // Pantalla alta para que el formulario completo quepa sin desbordarse
+  tester.view.physicalSize = const Size(1000, 2400);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.reset);
+
+  await tester.pumpWidget(const RifaPredialApp());
+  await tester.pumpAndSettle();
+}
+
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const RifaPredialApp());
+  testWidgets('al arrancar pide aceptar los términos', (tester) async {
+    await arrancarApp(tester);
+    expect(find.text('Aviso de Privacidad y Términos'), findsOneWidget);
+    expect(find.byType(TarjetaFormulario), findsNothing);
+  });
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+  testWidgets('al aceptar los términos aparece el formulario', (tester) async {
+    await arrancarApp(tester);
+    await tester.tap(find.text('Aceptar'));
+    await tester.pumpAndSettle();
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    expect(find.text('Aviso de Privacidad y Términos'), findsNothing);
+    expect(find.byType(TarjetaFormulario), findsOneWidget);
+  });
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+  testWidgets('sin aceptar los términos no hay formulario', (tester) async {
+    await arrancarApp(tester);
+    await tester.tap(find.text('No Acepto'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(TarjetaFormulario), findsNothing);
+    expect(find.text('Aviso de Privacidad Requerido'), findsOneWidget);
+    expect(find.text('Revisar Términos'), findsOneWidget);
   });
 }

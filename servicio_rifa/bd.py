@@ -12,6 +12,10 @@ import requests
 
 log = logging.getLogger("servicio_rifa.bd")
 
+# Si la función no manda mensaje, el ciudadano ve uno de estos (nunca "None")
+MSG_EXITO = "Registro completado exitosamente."
+MSG_RECHAZO = "No fue posible completar el registro. Revisa tus datos e intenta de nuevo."
+
 
 class BDNoDisponible(Exception):
     """No se pudo completar la llamada a Supabase (red o error inesperado)."""
@@ -54,6 +58,14 @@ class ClienteSupabase:
             raise BDNoDisponible(f"Supabase respondió HTTP {r.status_code}")
         try:
             datos = r.json()
-            return {"success": bool(datos["success"]), "message": str(datos["message"])}
-        except (ValueError, KeyError, TypeError) as e:
+            exito = datos["success"]
+            mensaje = datos.get("message")
+        except (ValueError, KeyError, TypeError, AttributeError) as e:
             raise BDNoDisponible("Respuesta inesperada de registrar_boleto_rifa") from e
+        # Solo un booleano real cuenta: bool("false") es True en Python y un
+        # rechazo se reportaría como registro exitoso.
+        if not isinstance(exito, bool):
+            raise BDNoDisponible(f"registrar_boleto_rifa devolvió success={type(exito).__name__}")
+        if not isinstance(mensaje, str) or not mensaje.strip():
+            mensaje = MSG_EXITO if exito else MSG_RECHAZO
+        return {"success": exito, "message": mensaje}

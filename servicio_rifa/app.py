@@ -42,8 +42,10 @@ MSG_LIMITE = "Demasiados intentos. Espera unos minutos y vuelve a intentarlo."
 MSG_NO_DISPONIBLE = "El servicio no está disponible en este momento. Intenta de nuevo más tarde."
 
 # ------------------------------------------------------------- validación
-RE_TXCA = re.compile(r"^\d{4}-\d{1,10}$")  # la API acepta ^\d{4}-\d+$
-RE_TELEFONO = re.compile(r"^\d{10}$")
+# re.ASCII: sin él, \d acepta cualquier dígito Unicode (１２３, ١٢٣...) y el
+# mismo teléfono escrito con otros dígitos esquivaría el límite de boletos.
+RE_TXCA = re.compile(r"^\d{4}-\d{1,10}$", re.ASCII)  # la API acepta ^\d{4}-\d+$
+RE_TELEFONO = re.compile(r"^\d{10}$", re.ASCII)
 RE_NOMBRE = re.compile(r"^[A-ZÁÉÍÓÚÜÑ]+( [A-ZÁÉÍÓÚÜÑ]+)*$")
 LARGO_MAX_NOMBRE = 60
 

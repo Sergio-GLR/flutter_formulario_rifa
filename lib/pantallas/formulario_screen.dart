@@ -13,7 +13,11 @@ import '../componentes/tarjetaFormulario.dart';
 enum FormStatus { capturaInicial, validandoApi, confirmacion, guardando, exito }
 
 class FormularioScreen extends StatefulWidget {
-  const FormularioScreen({super.key});
+  /// Cliente del servicio interno. Las pruebas pasan uno simulado; la app usa
+  /// el real.
+  final ServicioRifa? servicio;
+
+  const FormularioScreen({super.key, this.servicio});
 
   @override
   State<FormularioScreen> createState() => _FormularioScreenState();
@@ -94,12 +98,15 @@ class _FormularioScreenState extends State<FormularioScreen> {
 
   // Toda la comunicación pasa por el servicio interno: la app ya no conoce
   // el token/salt del SRM ni ninguna clave de Supabase.
-  final _servicio = ServicioRifa();
+  late final ServicioRifa _servicio = widget.servicio ?? ServicioRifa();
 
   // Datos que el ciudadano confirmó en el modal; el registro usa exactamente estos
   String _txcaValidada = '';
   DateTime? _fechaValidada;
   String _direccion = '';
+
+  // Boleto tal como lo registró el servicio: es lo que se muestra y se descarga
+  BoletoRegistrado? _boleto;
 
   String _mensajeDe(Object e) =>
       e is ErrorServicio ? e.mensaje : ServicioRifa.msgInesperado;
@@ -122,10 +129,12 @@ class _FormularioScreenState extends State<FormularioScreen> {
     setState(() => _currentState = FormStatus.validandoApi);
 
     try {
-      final transaccionCompleta =
-          '${DateTime.now().year}-${_transaccionCtrl.text.trim()}';
       // Ya pasó el validador del formulario, así que la fecha es válida
       final fechaPago = Validadores.parsearFecha(_fechaPagoCtrl.text)!;
+      // El año del folio es el del pago, no el del reloj del equipo: quien
+      // pagó en diciembre y se registra en enero conserva el año de su recibo.
+      final transaccionCompleta =
+          '${fechaPago.year}-${_transaccionCtrl.text.trim()}';
       final direccion = await _servicio.validar(
         transaccion: transaccionCompleta,
         fechaPago: fechaPago,
@@ -179,7 +188,7 @@ class _FormularioScreenState extends State<FormularioScreen> {
     try {
       // El servicio vuelve a verificar con el SRM y toma de ahí los datos del
       // predio; la app ya no los envía.
-      await _servicio.registrar(
+      final boleto = await _servicio.registrar(
         transaccion: _txcaValidada,
         fechaPago: _fechaValidada!,
         nombre: _nombreCtrl.text.trim(),
@@ -193,7 +202,10 @@ class _FormularioScreenState extends State<FormularioScreen> {
       // compartido y el PNG (nombre + folio) quedaría para la siguiente
       // persona. El ciudadano ve su boleto en pantalla y puede usar el
       // botón "Descargar" si lo quiere.
-      setState(() => _currentState = FormStatus.exito);
+      setState(() {
+        _boleto = boleto;
+        _currentState = FormStatus.exito;
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() => _currentState = FormStatus.capturaInicial);
@@ -206,7 +218,7 @@ class _FormularioScreenState extends State<FormularioScreen> {
   void _descargarBoleto() {
     BoletoDescarga.descargarBoleto(
       key: _boletoKey,
-      numeroTransaccion: _transaccionCtrl.text.trim(),
+      numeroTransaccion: _boleto?.txca ?? _txcaValidada,
       onNotificar: (mensaje, {bool esError = false}) {
         _mostrarSnackBar(mensaje, esError: esError);
       },
@@ -236,6 +248,7 @@ class _FormularioScreenState extends State<FormularioScreen> {
     _txcaValidada = '';
     _fechaValidada = null;
     _direccion = '';
+    _boleto = null;
 
     setState(() {
       // 2. Resetea las validaciones visuales (quita los mensajes de error en rojo)
@@ -296,18 +309,14 @@ class _FormularioScreenState extends State<FormularioScreen> {
                         child: Center(
                           child: Padding(
                             padding: const EdgeInsets.symmetric(vertical: 40),
-                            child: _currentState == FormStatus.exito
+                            child: _currentState == FormStatus.exito &&
+                                    _boleto != null
                                 ? BoletoExito(
                                     boletoKey: _boletoKey,
-                                    transaccion:
-                                        '${DateTime.now().year}-${_transaccionCtrl.text.trim()}',
-                                    // Solo une las partes con texto: sin apellido
-                                    // materno no queda un espacio al final
-                                    nombreUsuario: [
-                                      _nombreCtrl.text.trim(),
-                                      _apellidoPaternoCtrl.text.trim(),
-                                      _apellidoMaternoCtrl.text.trim(),
-                                    ].where((parte) => parte.isNotEmpty).join(' '),
+                                    // Folio y nombre tal como quedaron registrados
+                                    // en el servicio, no recalculados aquí
+                                    transaccion: _boleto!.txca,
+                                    nombreUsuario: _boleto!.nombre,
                                     onDescargar: _descargarBoleto,
                                     onAceptar: _reiniciarFormulario,
                                   )
