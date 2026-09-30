@@ -275,15 +275,31 @@ class SupuestoPersonaMoralSinPropietario(_Base):
     """srm.py arma el Predio (propietario.strip(), domicilio.strip()...) ANTES
     de que app.py revise t_persona. Si para una persona MORAL el SRM manda
     propietario o domicilio en null, el ciudadano recibe 503 "servicio no
-    disponible" (y reintenta) en lugar de "exclusivo para personas físicas"."""
+    disponible" (y reintenta) en lugar de "exclusivo para personas físicas".
+
+    Respuesta (Propuesta Técnica del SRM, sección 5.2): todos los campos son
+    string, pero MORAL nunca se ha observado ("considerar también MORAL si
+    aparece"). srm.py ahora lee t_persona primero y solo a una persona
+    FÍSICA le exige los datos del predio."""
 
     def test_moral_sin_propietario_recibe_el_mensaje_de_persona_moral(self):
-        for campo in ("propietario", "domicilio", "cc"):
+        for campo in ("propietario", "domicilio", "cc", "txca"):
             with self.subTest(nulo=campo):
                 self.armar(srm=srm_que_responde(t_persona="MORAL", **{campo: None}))
                 r = self.post("/api/validar", {"txca": "2026-337308",
                                                "fecha_pago": "2026-09-03"})
                 self.assertEqual((r.status_code, r.json["mensaje"]), (422, MSG_PERSONA_MORAL))
+
+    def test_fisica_sin_datos_del_predio_no_se_registra(self):
+        """Guardia: a una persona FÍSICA se le siguen exigiendo los datos del
+        predio; sin ellos no llega a la base (el boleto quedaría sin clave
+        catastral o sin dirección)."""
+        for campo in ("propietario", "domicilio", "cc"):
+            with self.subTest(nulo=campo):
+                self.armar(srm=srm_que_responde(**{campo: None}))
+                r = self.post("/api/registrar", datos_registro())
+                self.assertEqual(r.status_code, 503)
+                self.assertEqual(self.bd.llamadas, [])
 
 
 # ================================================== supuesto sobre IPv6

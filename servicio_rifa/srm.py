@@ -146,12 +146,25 @@ class ClienteSRM:
 
         resp = datos.get("response") if isinstance(datos, dict) else None
         try:
+            # El tipo de persona va primero: solo una persona FÍSICA se
+            # registra, así que solo a ella se le exigen los datos del predio.
+            # La documentación nunca ha mostrado una respuesta MORAL; si llega
+            # con campos vacíos debe recibir "exclusivo para personas físicas",
+            # no un 503 que la haga reintentar.
+            tipo = _leer_tipo_persona(resp["t_persona"])
+
+            def texto(campo):
+                valor = resp.get(campo)
+                if valor is None and tipo != "FISICA":
+                    return ""
+                return valor.strip()
+
             return Predio(
-                txca=resp["txca"],
-                clave_catastral=resp["cc"].strip(),
-                propietario=resp["propietario"].strip(),
-                domicilio=resp["domicilio"].strip(),
-                tipo_persona=_leer_tipo_persona(resp["t_persona"]),
+                txca=texto("txca"),
+                clave_catastral=texto("cc"),
+                propietario=texto("propietario"),
+                domicilio=texto("domicilio"),
+                tipo_persona=tipo,
                 fecha_pago=_leer_fecha_pago(resp["fecha_pago"]),
             )
         except (TypeError, KeyError, AttributeError, ValueError) as e:
