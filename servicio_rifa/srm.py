@@ -72,8 +72,12 @@ def _leer_tipo_persona(texto: str) -> str:
 
 
 def _leer_fecha_pago(texto: str) -> date:
-    """Formato observado en la documentación: 'DD-MM-YYYY HH:mm:ss'."""
-    return datetime.strptime(texto.strip()[:10], "%d-%m-%Y").date()
+    """Formato observado en la documentación: 'DD-MM-YYYY HH:mm:ss'. Se toma
+    lo que va antes del espacio en lugar de los primeros 10 caracteres: con
+    '3-9-2026 9:05:00' el corte dejaba '3-9-2026 9' y fallaba. strptime acepta
+    día y mes con o sin cero."""
+    dia = (texto.split() or [""])[0]  # "" -> ValueError, igual que un formato raro
+    return datetime.strptime(dia, "%d-%m-%Y").date()
 
 
 class ClienteSRM:

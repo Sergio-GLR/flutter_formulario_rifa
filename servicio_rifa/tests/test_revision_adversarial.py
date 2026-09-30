@@ -245,10 +245,15 @@ class SupuestoFechaDelSRMConCeros(unittest.TestCase):
     'DD-MM-YYYY'. Si el SRM manda el día o el mes sin cero ('3-9-2026
     9:05:00'), el corte deja '3-9-2026 9' y TODAS esas consultas responden
     503 "servicio no disponible". El ciudadano reintenta y nunca pasa. El
-    formato solo se vio en un ejemplo de la documentación."""
+    formato solo se vio en un ejemplo de la documentación.
+
+    Respuesta (Propuesta Técnica del SRM, sección 5.2): "Formato observado:
+    DD-MM-YYYY HH:mm:ss". Observado, no garantizado, así que
+    srm._leer_fecha_pago toma lo que va antes del espacio."""
 
     def test_dia_y_mes_sin_cero(self):
-        for texto in ("3-09-2026 13:24:31", "03-9-2026 13:24:31", "3-9-2026 9:05:00"):
+        for texto in ("3-09-2026 13:24:31", "03-9-2026 13:24:31", "3-9-2026 9:05:00",
+                      "03-09-2026 13:24:31", "03-09-2026", " 03-09-2026  13:24:31 "):
             with self.subTest(fecha_pago=texto):
                 srm = srm_que_responde(fecha_pago=texto)
                 try:
@@ -256,6 +261,14 @@ class SupuestoFechaDelSRMConCeros(unittest.TestCase):
                 except SRMNoDisponible:
                     self.fail(f"'{texto}' se trató como SRM caído")
                 self.assertEqual((fecha.year, fecha.month, fecha.day), (2026, 9, 3))
+
+    def test_una_fecha_ilegible_sigue_siendo_srm_no_disponible(self):
+        """Guardia: tolerar los ceros no debe aceptar otros formatos (y nunca
+        un error 500 por una fecha vacía)."""
+        for texto in ("", "   ", "2026-09-03 13:24:31", "03/09/2026", "31-02-2026", None):
+            with self.subTest(fecha_pago=texto):
+                with self.assertRaises(SRMNoDisponible):
+                    srm_que_responde(fecha_pago=texto).consultar("2026-337308")
 
 
 class SupuestoPersonaMoralSinPropietario(_Base):
