@@ -41,6 +41,25 @@ MSG_NO_ENCONTRADO = ("No encontramos un pago de predial vigente con ese número 
 MSG_PERSONA_MORAL = "El sorteo es exclusivo para personas físicas."
 MSG_LIMITE = "Demasiados intentos. Espera unos minutos y vuelve a intentarlo."
 MSG_NO_DISPONIBLE = "El servicio no está disponible en este momento. Intenta de nuevo más tarde."
+MSG_REGISTRADO = "Registro completado exitosamente."
+MSG_NO_REGISTRADO = "No fue posible completar el registro. Revisa tus datos e intenta de nuevo."
+
+# Rechazos de registrar_boleto_rifa que el ciudadano sí debe leer, copiados
+# TAL CUAL de la función SQL (si cambian allá, hay que cambiarlos aquí).
+# Cualquier otro mensaje de la base se cambia por MSG_NO_REGISTRADO: lista
+# permitida, no lista negra, para que un error técnico (por ejemplo SQLERRM:
+# "null value in column ... of relation ...") nunca llegue al navegador,
+# aunque alguien vuelva a ponerlo en la función.
+RECHAZOS_DE_LA_BD = frozenset({
+    "Este número de teléfono ya ha alcanzado el límite de 5 boletos registrados en total.",
+    "Este número de transacción ya fue registrado anteriormente.",
+    "No pudimos registrar tu boleto en este momento. Intenta de nuevo más tarde.",
+})
+
+
+def _mensaje_de_rechazo(mensaje):
+    """El rechazo de la base tal cual solo si es uno conocido; si no, uno genérico."""
+    return mensaje if mensaje in RECHAZOS_DE_LA_BD else MSG_NO_REGISTRADO
 
 # ------------------------------------------------------------- validación
 # re.ASCII: sin él, \d acepta cualquier dígito Unicode (１２３, ١٢٣...) y el
@@ -234,11 +253,12 @@ def crear_app(srm=None, bd=None, limite=None, config=None):
             direccion=predio.domicilio,
         )
         if not resultado["success"]:
+            # El mensaje original solo va al log del servidor
             log.info("txca=%s no registrada: %s", txca, resultado["message"])
-            return error(resultado["message"], 422)
+            return error(_mensaje_de_rechazo(resultado["message"]), 422)
         log.info("txca=%s registrada", txca)
         nombre_completo = " ".join(p for p in (nombre, paterno, materno) if p)
-        return jsonify(ok=True, mensaje=resultado["message"],
+        return jsonify(ok=True, mensaje=MSG_REGISTRADO,
                        boleto={"txca": txca, "nombre": nombre_completo})
 
     return app

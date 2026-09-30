@@ -63,7 +63,12 @@ class FallaMensajeDeLaBDSinFiltrar(_Base):
     revisó registrar_boleto_rifa"). Si ese cambio no se hizo, el servicio es
     la única barrera y no filtra nada: el ciudadano ve nombres de tablas,
     columnas y restricciones. test_error_de_bd_no_expone_detalles solo cubre
-    el camino de BDNoDisponible, no este."""
+    el camino de BDNoDisponible, no este.
+
+    Corregido (30 sep 2026): la función SQL actual ya manda SQLERRM solo al
+    log de Postgres, y app.py solo deja pasar los rechazos que la función
+    escribe (RECHAZOS_DE_LA_BD). Esta prueba queda como protección por si
+    alguien vuelve a poner SQLERRM en la función."""
 
     TECNICOS = [
         'null value in column "clave_catastral" of relation "Predios" '
@@ -71,6 +76,11 @@ class FallaMensajeDeLaBDSinFiltrar(_Base):
         'duplicate key value violates unique constraint "boletos_pkey"',
         'function registrar_boleto_rifa(text, text) does not exist',
         'permission denied for table Boletos',
+        # Postgres con mensajes en español
+        'la relación «Boletos_Rifa» ya existe',
+        # Parecido a un rechazo conocido, pero no idéntico
+        'Este número de transacción ya fue registrado anteriormente. '
+        'Key (numero_transaccion)=(2026-337308) already exists.',
     ]
 
     def test_un_error_tecnico_de_la_bd_no_llega_al_ciudadano(self):
@@ -80,9 +90,29 @@ class FallaMensajeDeLaBDSinFiltrar(_Base):
                 r = self.post("/api/registrar", datos_registro())
                 self.assertIs(r.json["ok"], False)
                 cuerpo = r.get_data(as_text=True)
-                for fuga in ("relation", "constraint", "column", "function",
-                             "Predios", "Boletos", "permission"):
+                for fuga in ("relation", "relación", "constraint", "column", "function",
+                             "Predios", "Boletos", "permission", "numero_transaccion"):
                     self.assertNotIn(fuga, cuerpo)
+
+    def test_un_exito_no_repite_el_mensaje_de_la_bd(self):
+        self.armar(bd=BDFalsa(resultado={"success": True, "message": "INSERT 0 1 into Boletos"}))
+        r = self.post("/api/registrar", datos_registro())
+        self.assertIs(r.json["ok"], True)
+        self.assertNotIn("Boletos", r.get_data(as_text=True))
+
+    def test_los_rechazos_de_negocio_si_llegan_al_ciudadano(self):
+        """Guardia: el filtro no debe tapar lo que el ciudadano necesita saber.
+        Mensajes copiados de la función SQL registrar_boleto_rifa."""
+        for mensaje in (
+                "Este número de teléfono ya ha alcanzado el límite de 5 boletos "
+                "registrados en total.",
+                "Este número de transacción ya fue registrado anteriormente.",
+                "No pudimos registrar tu boleto en este momento. Intenta de nuevo "
+                "más tarde."):
+            with self.subTest(mensaje=mensaje):
+                self.armar(bd=BDFalsa(resultado={"success": False, "message": mensaje}))
+                r = self.post("/api/registrar", datos_registro())
+                self.assertEqual((r.status_code, r.json["mensaje"]), (422, mensaje))
 
 
 # ================================================== app.py: tamaño del cuerpo
