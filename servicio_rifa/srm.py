@@ -16,6 +16,7 @@ import hashlib
 import json
 import hmac
 import logging
+import unicodedata
 from dataclasses import dataclass
 from datetime import date, datetime
 
@@ -60,6 +61,14 @@ def firmar(txca: str, token: str, salt: str) -> str:
     """HMAC-SHA256 en hex minúsculas, con el salt como texto (no como hex)."""
     return hmac.new(salt.encode("utf-8"), (txca + token).encode("utf-8"),
                     hashlib.sha256).hexdigest()
+
+
+def _leer_tipo_persona(texto: str) -> str:
+    """'FISICA' o 'MORAL' en mayúsculas y sin acentos. La documentación dice
+    "Valor observado: FISICA", pero en su texto escribe "FÍSICAS": si algún
+    día llega con acento, compararlo tal cual rechazaría a TODOS."""
+    sin_acentos = unicodedata.normalize("NFKD", texto.strip().upper())
+    return "".join(c for c in sin_acentos if not unicodedata.combining(c))
 
 
 def _leer_fecha_pago(texto: str) -> date:
@@ -138,7 +147,7 @@ class ClienteSRM:
                 clave_catastral=resp["cc"].strip(),
                 propietario=resp["propietario"].strip(),
                 domicilio=resp["domicilio"].strip(),
-                tipo_persona=resp["t_persona"].strip().upper(),
+                tipo_persona=_leer_tipo_persona(resp["t_persona"]),
                 fecha_pago=_leer_fecha_pago(resp["fecha_pago"]),
             )
         except (TypeError, KeyError, AttributeError, ValueError) as e:

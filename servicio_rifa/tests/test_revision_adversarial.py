@@ -216,15 +216,28 @@ class SupuestoTipoPersonaSinAcento(_Base):
     ciudadanos quedan fuera con "El sorteo es exclusivo para personas
     físicas". Ninguna prueba usa una respuesta real del SRM: todas usan
     "FISICA". Hay que confirmar con el SRM el valor exacto (o normalizar
-    acentos antes de comparar)."""
+    acentos antes de comparar).
+
+    Respuesta (Propuesta Técnica del SRM, sección 5.2): "Valor observado:
+    FISICA (considerar también MORAL si aparece)". Observado, no garantizado,
+    así que srm._leer_tipo_persona quita acentos antes de comparar."""
 
     def test_fisica_con_acento_es_persona_fisica(self):
-        for valor in ("FÍSICA", "Física", "física"):
+        for valor in ("FISICA", "FÍSICA", "Física", "física", " fisica "):
             with self.subTest(t_persona=valor):
                 self.armar(srm=srm_que_responde(t_persona=valor))
                 r = self.post("/api/validar", {"txca": "2026-337308",
                                                "fecha_pago": "2026-09-03"})
                 self.assertEqual(r.status_code, 200, r.json)
+
+    def test_moral_sigue_rechazada_en_cualquier_forma(self):
+        """Guardia: normalizar no debe dejar pasar a una persona moral."""
+        for valor in ("MORAL", "Moral", "moral", "PERSONA MORAL", ""):
+            with self.subTest(t_persona=valor):
+                self.armar(srm=srm_que_responde(t_persona=valor))
+                r = self.post("/api/validar", {"txca": "2026-337308",
+                                               "fecha_pago": "2026-09-03"})
+                self.assertEqual((r.status_code, r.json["mensaje"]), (422, MSG_PERSONA_MORAL))
 
 
 class SupuestoFechaDelSRMConCeros(unittest.TestCase):
