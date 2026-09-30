@@ -51,6 +51,9 @@ Reglas que aplica:
 4. En el servidor web que ya publica el formulario (IIS, Nginx o Apache),
    agregar una regla de proxy inverso: `/api/` → `http://127.0.0.1:8080/api/`.
    Así el formulario y el servicio comparten dominio y no hace falta CORS.
+   El tiempo de espera del proxy debe ser de **al menos 45 s** (lo que espera
+   el formulario; el servicio tarda 39 s en el peor caso). Los valores por
+   defecto de Nginx (60 s) e IIS/ARR (120 s) ya alcanzan.
 
 ### Dos valores que hay que confirmar con quien administra el servidor
 

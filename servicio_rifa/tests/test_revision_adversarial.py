@@ -171,7 +171,10 @@ class FallaElFormularioSeRindeAntesQueElServicio(unittest.TestCase):
 
     Si el formulario se rinde primero, el ciudadano ve "El servidor tardó
     demasiado" aunque el servicio SÍ lo registre. Al reintentar recibe
-    "ya registrado" y nunca ve su boleto."""
+    "ya registrado" y nunca ve su boleto.
+
+    Corregido (30 sep 2026): timeouts (conectar, leer) separados,
+    srm.TIMEOUT_SRM = (3, 10) y bd.TIMEOUT_BD = (5, 8). Peor caso: 39 s."""
 
     def test_el_peor_caso_del_servicio_cabe_en_la_espera_del_formulario(self):
         with open(os.path.join(RAIZ, "lib", "servicios", "servicio_rifa.dart"),

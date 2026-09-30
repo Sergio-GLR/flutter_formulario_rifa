@@ -16,13 +16,19 @@ log = logging.getLogger("servicio_rifa.bd")
 MSG_EXITO = "Registro completado exitosamente."
 MSG_RECHAZO = "No fue posible completar el registro. Revisa tus datos e intenta de nuevo."
 
+# (conectar, leer) en segundos. Supabase está en internet: 5 s alcanzan para
+# conectar y el saludo TLS; la función responde en menos de 1 s. Sumado al
+# peor caso del SRM (26 s, ver srm.TIMEOUT_SRM) da 39 s, menos que los 45 s
+# que espera el formulario. Si alguno sube, revisar que la suma siga cabiendo.
+TIMEOUT_BD = (5, 8)
+
 
 class BDNoDisponible(Exception):
     """No se pudo completar la llamada a Supabase (red o error inesperado)."""
 
 
 class ClienteSupabase:
-    def __init__(self, url: str, clave_secreta: str, sesion=None, timeout=15):
+    def __init__(self, url: str, clave_secreta: str, sesion=None, timeout=TIMEOUT_BD):
         if not (url and clave_secreta):
             raise ValueError("Faltan SUPABASE_URL o SUPABASE_SECRET_KEY en la configuración")
         self._endpoint = url.rstrip("/") + "/rest/v1/rpc/registrar_boleto_rifa"

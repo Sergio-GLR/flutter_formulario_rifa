@@ -19,7 +19,7 @@ import time
 import requests
 from dotenv import load_dotenv
 
-from srm import TIMEOUT_SEGUNDOS, firmar
+from srm import TIMEOUT_SRM, firmar
 
 load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
 TOKEN = os.environ.get("SRM_TOKEN", "")
@@ -51,7 +51,7 @@ def tapar(texto):
 def probar(nombre, url, **kw):
     inicio = time.perf_counter()
     try:
-        r = requests.post(url, timeout=TIMEOUT_SEGUNDOS, **kw)
+        r = requests.post(url, timeout=TIMEOUT_SRM, **kw)
         ms = (time.perf_counter() - inicio) * 1000
         tipo = r.headers.get("Content-Type", "?")
         try:
@@ -96,7 +96,7 @@ def red():
 def cabeceras(url):
     """Qué servidor contesta (nginx, IIS, Apache...) y qué dice un GET."""
     try:
-        r = requests.get(url, timeout=TIMEOUT_SEGUNDOS)
+        r = requests.get(url, timeout=TIMEOUT_SRM)
         interesantes = {k: v for k, v in r.headers.items()
                         if k.lower() in ("server", "x-powered-by", "via", "x-aspnet-version")}
         print(f"  GET -> HTTP {r.status_code}  cabeceras del servidor: {interesantes or 'ninguna'}")

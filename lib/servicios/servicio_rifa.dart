@@ -26,7 +26,9 @@ class ServicioRifa {
   ///   flutter run -d chrome --dart-define=API_BASE=http://localhost:8080
   static const String _apiBase = String.fromEnvironment('API_BASE');
 
-  /// El servicio puede tardar hasta ~25 s si el SRM está lento (reintenta 1 vez).
+  /// Tiene que ser MAYOR que el peor caso del servicio (39 s: srm.TIMEOUT_SRM
+  /// con un reintento + bd.TIMEOUT_BD). Si la app se rinde primero, el
+  /// ciudadano ve "tardó demasiado" aunque el servicio sí lo registre.
   static const Duration _timeout = Duration(seconds: 45);
 
   static const String msgSinConexion =

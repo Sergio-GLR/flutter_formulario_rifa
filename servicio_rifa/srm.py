@@ -23,7 +23,12 @@ import requests
 
 log = logging.getLogger("servicio_rifa.srm")
 
-TIMEOUT_SEGUNDOS = 12
+# (conectar, leer) en segundos. Un número solo valdría para CADA fase: con 12,
+# un intento podía tardar 24 s y con el reintento 48 s, más de lo que espera
+# el formulario (45 s en servicio_rifa.dart). El SRM está en la red municipal
+# y conecta en milisegundos; la lectura queda en el rango que sugiere su
+# documentación (8-15 s). Peor caso con reintento: 2 x (3 + 10) = 26 s.
+TIMEOUT_SRM = (3, 10)
 
 
 @dataclass(frozen=True)
@@ -96,7 +101,7 @@ class ClienteSRM:
         ultimo_error = None
         for intento in (1, 2):  # máximo 1 reintento, solo por errores de red
             try:
-                r = self._http.post(self.url, data=cuerpo_json, timeout=TIMEOUT_SEGUNDOS,
+                r = self._http.post(self.url, data=cuerpo_json, timeout=TIMEOUT_SRM,
                                     headers={"Content-Type": "application/json; charset=utf-8",
                                              "Accept": "application/json"})
                 datos = r.json()
