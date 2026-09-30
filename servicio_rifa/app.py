@@ -24,7 +24,7 @@ import re
 from datetime import date
 
 from flask import Flask, jsonify, request
-from werkzeug.exceptions import HTTPException
+from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from bd import BDNoDisponible, ClienteSupabase
@@ -71,6 +71,11 @@ RE_TELEFONO = re.compile(r"^\d{10}$", re.ASCII)
 RE_FECHA = re.compile(r"^\d{4}-\d{2}-\d{2}$", re.ASCII)
 RE_NOMBRE = re.compile(r"^[A-ZÁÉÍÓÚÜÑ]+( [A-ZÁÉÍÓÚÜÑ]+)*$")
 LARGO_MAX_NOMBRE = 60  # igual que Validadores.largoMaxNombre en el formulario
+# Tamaño máximo de una petición. El registro más largo posible (nombres de 60
+# letras con acentos) cabe en ~1 KB; sin tope, Flask lee a memoria lo que
+# llegue (waitress acepta hasta 1 GB). servidor.py usa el mismo valor.
+MAX_CUERPO_BYTES = 16 * 1024
+MSG_DEMASIADO_GRANDE = "La petición es demasiado grande."
 
 
 class DatosInvalidos(Exception):
@@ -104,7 +109,12 @@ def _nombre(datos, campo, obligatorio=True, etiqueta=None):
 def _cuerpo():
     """El JSON de la petición, que debe ser un objeto. Sin cuerpo (o sin
     JSON válido) se trata como vacío: cada campo avisa que es obligatorio."""
-    datos = request.get_json(silent=True)
+    try:
+        datos = request.get_json(silent=True)
+    except RecursionError:
+        # JSON anidado a miles de niveles ([[[[...]]]]): no es ValueError, así
+        # que silent=True no lo atrapa y terminaría en un 500 con traza.
+        raise DatosInvalidos("La petición no tiene el formato correcto.") from None
     if datos is None:
         return {}
     if not isinstance(datos, dict):
@@ -133,6 +143,8 @@ def crear_app(srm=None, bd=None, limite=None, config=None):
 
     app = Flask(__name__)
     app.json.ensure_ascii = False  # acentos legibles en las respuestas
+    # Más grande que esto responde 413 sin leer el cuerpo a memoria
+    app.config["MAX_CONTENT_LENGTH"] = MAX_CUERPO_BYTES
 
     # Detrás del proxy del servidor, la IP real del ciudadano viene en
     # X-Forwarded-For. Sin esto, TODAS las peticiones parecerían venir del
@@ -194,6 +206,12 @@ def crear_app(srm=None, bd=None, limite=None, config=None):
     @app.errorhandler(DatosInvalidos)
     def _datos_invalidos(e):
         return error(str(e), 400)
+
+    @app.errorhandler(RequestEntityTooLarge)
+    def _demasiado_grande(e):
+        log.warning("Petición de más de %s bytes desde %s", MAX_CUERPO_BYTES,
+                    request.remote_addr)
+        return error(MSG_DEMASIADO_GRANDE, 413)
 
     @app.errorhandler(_Rechazo)
     def _rechazo(e):

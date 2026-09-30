@@ -124,7 +124,10 @@ class FallaCuerpoSinLimite(_Base):
 
     Además, un JSON muy anidado (`[[[[...]]]]`) provoca RecursionError, que
     no es ValueError: get_json(silent=True) no lo atrapa y el servicio
-    responde 500 y escribe una traza completa en el log por cada petición."""
+    responde 500 y escribe una traza completa en el log por cada petición.
+
+    Corregido (30 sep 2026): MAX_CUERPO_BYTES (16 KB) en Flask y en waitress
+    (servidor.py), y _cuerpo() convierte el RecursionError en un 400."""
 
     def test_un_cuerpo_enorme_se_rechaza_con_413(self):
         self.armar()
@@ -132,17 +135,31 @@ class FallaCuerpoSinLimite(_Base):
         r = self.cliente.post("/api/validar", data=enorme, content_type="application/json",
                               environ_base={"REMOTE_ADDR": "200.1.1.1"})
         self.assertEqual(r.status_code, 413)
+        self.assertTrue(r.is_json, "Respondió HTML en vez de JSON")
+        self.assertIs(r.json["ok"], False)
+        self.assertEqual(self.srm.consultas, [])
 
     def test_json_muy_anidado_responde_400(self):
         self.armar()
-        for crudo in ("[" * 100000 + "]" * 100000,
-                      '{"a":' * 50000 + "1" + "}" * 50000):
+        # Menos de 16 KB (para no chocar con el tope de tamaño) pero 2,000
+        # niveles: el doble del límite de recursión de Python.
+        for crudo in ("[" * 2000 + "]" * 2000,
+                      '{"a":' * 2000 + "1" + "}" * 2000):
             with self.subTest(cuerpo=crudo[:10] + "..."):
                 r = self.cliente.post("/api/validar", data=crudo,
                                       content_type="application/json",
                                       environ_base={"REMOTE_ADDR": "200.1.1.1"})
                 self.assertEqual(r.status_code, 400)
                 self.assertIs(r.json["ok"], False)
+
+    def test_el_registro_valido_mas_grande_cabe(self):
+        """Guardia: el tope no debe dejar fuera a nadie. Nombre y apellidos de
+        60 letras, todas con acento (2 bytes cada una en UTF-8)."""
+        self.armar()
+        largo = "Á" * 60
+        r = self.post("/api/registrar", datos_registro(
+            nombre=largo, apellido_paterno=largo, apellido_materno=largo))
+        self.assertEqual(r.status_code, 200, r.json)
 
 
 # ================================================== tiempos: servicio vs. formulario
