@@ -74,7 +74,11 @@ class FallaDatosDelPredioVacios(_Base):
     pero solo revisa que no sean None (test_fisica_sin_datos_del_predio_no_se_registra
     solo prueba None). Si el SRM manda "" o "   ", `texto()` devuelve "" y el
     boleto se guarda sin clave catastral, sin propietario o sin dirección; y
-    /api/validar le pide al ciudadano confirmar una dirección en blanco."""
+    /api/validar le pide al ciudadano confirmar una dirección en blanco.
+
+    Corregido (1 oct 2026): srm.py trata un texto vacío de una persona FÍSICA
+    igual que None (SRMNoDisponible -> 503). A una persona MORAL no se le
+    exigen, y sigue recibiendo "exclusivo para personas físicas"."""
 
     def test_fisica_con_datos_vacios_no_se_registra(self):
         for campo in ("cc", "propietario", "domicilio"):

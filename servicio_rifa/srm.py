@@ -157,7 +157,12 @@ class ClienteSRM:
                 valor = resp.get(campo)
                 if valor is None and tipo != "FISICA":
                     return ""
-                return valor.strip()
+                valor = valor.strip()
+                # "" o "   " no son datos: el boleto quedaría sin clave
+                # catastral o sin dirección, igual que con None.
+                if not valor and tipo == "FISICA":
+                    raise ValueError(f"'{campo}' vacío para persona FÍSICA")
+                return valor
 
             return Predio(
                 txca=texto("txca"),
