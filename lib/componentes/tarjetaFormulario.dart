@@ -234,28 +234,38 @@ class TarjetaFormulario extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    CustomTextField(
-                      label: 'NO. DE TRANSACCIÓN',
-                      hint:
-                          (transaccionFocus.hasFocus ||
-                              transaccionCtrl.text.isNotEmpty)
-                          ? 'ej. 000000'
-                          : 'ej. ${DateTime.now().year}-000000',
-                      helper: 'Ingresa los 6 dígitos de tu recibo',
-                      controller: transaccionCtrl,
-                      focusNode: transaccionFocus,
-                      enabled: !isCargando,
-                      keyboardType: TextInputType.number,
-                      prefixText:
-                          (transaccionFocus.hasFocus ||
-                              transaccionCtrl.text.isNotEmpty)
-                          ? '${DateTime.now().year}-'
-                          : null,
-                      validator: Validadores.validarTransaccion,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                        LengthLimitingTextInputFormatter(6),
-                      ],
+                    // El año del prefijo es el de la FECHA DE PAGO, el mismo
+                    // con que formulario_screen arma la txca; mientras no haya
+                    // fecha válida se muestra el actual. Se reconstruye al
+                    // escribir la fecha, que va después de este campo.
+                    ValueListenableBuilder<TextEditingValue>(
+                      valueListenable: fechaPagoCtrl,
+                      builder: (context, fecha, _) {
+                        final anio = Validadores.anioDelFolio(fecha.text);
+                        return CustomTextField(
+                          label: 'NO. DE TRANSACCIÓN',
+                          hint:
+                              (transaccionFocus.hasFocus ||
+                                  transaccionCtrl.text.isNotEmpty)
+                              ? 'ej. 000000'
+                              : 'ej. $anio-000000',
+                          helper: 'Ingresa los 6 dígitos de tu recibo',
+                          controller: transaccionCtrl,
+                          focusNode: transaccionFocus,
+                          enabled: !isCargando,
+                          keyboardType: TextInputType.number,
+                          prefixText:
+                              (transaccionFocus.hasFocus ||
+                                  transaccionCtrl.text.isNotEmpty)
+                              ? '$anio-'
+                              : null,
+                          validator: Validadores.validarTransaccion,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                            LengthLimitingTextInputFormatter(6),
+                          ],
+                        );
+                      },
                     ),
                     const SizedBox(height: 16),
                     // Segundo dato del recibo: evita que alguien registre un

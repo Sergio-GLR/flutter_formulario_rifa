@@ -37,6 +37,11 @@ class Validadores {
     return fecha;
   }
 
+  //año con que empieza el folio: el de la fecha de pago (el del recibo, no el
+  //del reloj del equipo); si todavía no hay una fecha válida, el actual
+  static int anioDelFolio(String? fechaPago, {DateTime? hoy}) =>
+      parsearFecha(fechaPago)?.year ?? (hoy ?? DateTime.now()).year;
+
   //validar la fecha de pago del recibo: formato DD/MM/AAAA, fecha real y no futura
   static String? validarFechaPago(String? value, {DateTime? hoy}) {
     if (value == null || value.trim().isEmpty) {

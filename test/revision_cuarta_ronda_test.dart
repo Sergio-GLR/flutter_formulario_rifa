@@ -90,6 +90,10 @@ void main() {
     // pagó en diciembre de 2025 y se registra en 2026 escribe su folio junto
     // a un "2026-" que no es el de su recibo; el modal de confirmación le
     // muestra "2025-...". Lo que se ve y lo que se envía deben coincidir.
+    //
+    // Corregido (1 oct 2026): el prefijo usa Validadores.anioDelFolio (año de
+    // la fecha de pago; el actual mientras no haya fecha válida) y se
+    // reconstruye al escribir la fecha.
     testWidgets('con fecha de pago de 2025 el prefijo visible es "2025-"',
         (tester) async {
       final enviados = await montar(tester);
@@ -109,6 +113,34 @@ void main() {
       expect(find.text('2025-'), findsOneWidget,
           reason: 'El campo muestra "${DateTime.now().year}-" pero se envió '
               '"$txcaEnviada"');
+    });
+  });
+
+  group('GUARDIA: el prefijo sigue a la fecha mientras se escribe', () {
+    testWidgets('sin fecha muestra el año actual; con fecha, el del pago',
+        (tester) async {
+      await montar(tester);
+      final folio = find.byType(TextFormField).at(4);
+      final fecha = find.byType(TextFormField).at(5);
+      await tester.enterText(folio, '337308');
+      await tester.pump();
+      expect(find.text('${DateTime.now().year}-'), findsOneWidget);
+
+      await tester.enterText(fecha, '15122025');
+      await tester.pump();
+      expect(find.text('2025-'), findsOneWidget);
+
+      await tester.enterText(fecha, '1512'); // fecha incompleta
+      await tester.pump();
+      expect(find.text('${DateTime.now().year}-'), findsOneWidget);
+    });
+
+    test('anioDelFolio', () {
+      final hoy = DateTime(2026, 10, 1);
+      expect(Validadores.anioDelFolio('15/12/2025', hoy: hoy), 2025);
+      expect(Validadores.anioDelFolio('', hoy: hoy), 2026);
+      expect(Validadores.anioDelFolio(null, hoy: hoy), 2026);
+      expect(Validadores.anioDelFolio('31/02/2025', hoy: hoy), 2026);
     });
   });
 
