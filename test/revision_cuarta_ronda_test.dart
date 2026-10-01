@@ -141,10 +141,15 @@ void main() {
     // deja pasar; Python no, y el servicio responde "solo puede contener
     // letras y espacios" sin que el ciudadano vea nada raro en el campo.
     // Prueba gemela en servicio_rifa/tests/test_revision_cuarta_ronda.py.
-    testWidgets('U+FEFF pegado en el nombre no llega al servicio',
+    //
+    // Corregido (1 oct 2026): los tres campos lo quitan con
+    // FilteringTextInputFormatter.deny('\uFEFF') antes del filtro de letras.
+    testWidgets('U+FEFF pegado en nombre y apellidos no llega al servicio',
         (tester) async {
       final enviados = await montar(tester);
-      await llenar(tester, nombre: 'MARÍA﻿JOSÉ');
+      await llenar(tester, nombre: 'MARÍA\uFEFFJOSÉ', paterno: 'GARCÍA\uFEFF');
+      await tester.enterText(find.byType(TextFormField).at(2), '\uFEFFLÓPEZ');
+      await tester.pump();
       await tester.tap(find.text('Aceptar'));
       await tester.pumpAndSettle();
       if (find.byType(ConfirmacionDialog).evaluate().isEmpty) {
@@ -153,11 +158,17 @@ void main() {
       await tester.tap(find.text('Aceptar').last);
       await tester.pumpAndSettle();
 
-      final nombre = enviados['/api/registrar']!.single['nombre'] as String;
-      expect(reNombreDelServicio.hasMatch(nombre), isTrue,
-          reason: 'Se envió ${jsonEncode(nombre)} (con '
-              '${nombre.runes.map((r) => 'U+${r.toRadixString(16).toUpperCase().padLeft(4, '0')}').join(' ')})'
-              ' y el servicio lo rechaza');
+      final cuerpo = enviados['/api/registrar']!.single;
+      for (final campo in ['nombre', 'apellido_paterno', 'apellido_materno']) {
+        final valor = cuerpo[campo] as String;
+        expect(reNombreDelServicio.hasMatch(valor), isTrue,
+            reason: 'Se envió en $campo ${jsonEncode(valor)} (con '
+                '${valor.runes.map((r) => 'U+${r.toRadixString(16).toUpperCase().padLeft(4, '0')}').join(' ')})'
+                ' y el servicio lo rechaza');
+      }
+      expect(cuerpo['nombre'], 'MARÍAJOSÉ');
+      expect(cuerpo['apellido_paterno'], 'GARCÍA');
+      expect(cuerpo['apellido_materno'], 'LÓPEZ');
     });
   });
 }

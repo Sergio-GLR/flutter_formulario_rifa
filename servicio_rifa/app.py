@@ -90,7 +90,11 @@ def _texto(datos, campo, obligatorio=True):
         valor = ""
     if not isinstance(valor, str):
         raise DatosInvalidos(f"El campo {campo} no es válido.")
-    valor = " ".join(valor.split())
+    # U+FEFF (BOM) llega al pegar texto de Word, Excel o un PDF. Es invisible y
+    # no ocupa lugar, así que se quita (no se vuelve espacio): el ciudadano ve
+    # "MARÍAJOSÉ". Python no lo cuenta como espacio y el formulario sí lo dejaba
+    # pasar, así que sin esto el nombre se rechazaba sin causa visible.
+    valor = " ".join(valor.replace("\ufeff", "").split())
     if obligatorio and not valor:
         raise DatosInvalidos(f"El campo {campo} es obligatorio.")
     return valor

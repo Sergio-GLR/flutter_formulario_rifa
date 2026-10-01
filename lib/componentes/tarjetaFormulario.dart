@@ -158,6 +158,8 @@ class TarjetaFormulario extends StatelessWidget {
                       textCapitalization: TextCapitalization.characters,
                       validator: Validadores.validarRequerido,
                       inputFormatters: [
+                        // U+FEFF: invisible, llega al pegar; Dart lo cuenta en \s
+                        FilteringTextInputFormatter.deny('\uFEFF'),
                         FilteringTextInputFormatter.allow(
                           RegExp(r'[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]'),
                         ),
@@ -180,6 +182,8 @@ class TarjetaFormulario extends StatelessWidget {
                             textCapitalization: TextCapitalization.characters,
                             validator: Validadores.validarRequerido,
                             inputFormatters: [
+                              // U+FEFF: invisible, llega al pegar; Dart lo cuenta en \s
+                              FilteringTextInputFormatter.deny('\uFEFF'),
                               FilteringTextInputFormatter.allow(
                                 RegExp(r'[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]'),
                               ),
@@ -202,6 +206,8 @@ class TarjetaFormulario extends StatelessWidget {
                             // La base de datos ya lo guarda como NULL.
                             validator: null,
                             inputFormatters: [
+                              // U+FEFF: invisible, llega al pegar; Dart lo cuenta en \s
+                              FilteringTextInputFormatter.deny('\uFEFF'),
                               FilteringTextInputFormatter.allow(
                                 RegExp(r'[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]'),
                               ),

@@ -386,16 +386,21 @@ class FallaElFormularioAceptaUnNombreQueElServicioRechaza(_Base):
     letras y espacios", sin que el ciudadano vea ningún carácter extraño.
 
     Cualquiera de los dos lados puede corregirlo (ver la prueba gemela en
-    test/revision_cuarta_ronda_test.dart); esta prueba pide que el servicio
-    lo trate como el espacio que el formulario cree que es."""
+    test/revision_cuarta_ronda_test.dart).
+
+    Corregido (1 oct 2026) en ambos lados: el formulario ya no lo deja
+    escribir y el servicio lo quita (por si alguien llama al servicio sin el
+    formulario). Se QUITA en lugar de volverse espacio: es invisible y no
+    ocupa lugar, así que el ciudadano ve "MARÍAJOSÉ", no "MARÍA JOSÉ"."""
 
     def test_un_bom_pegado_en_el_nombre_no_rechaza_el_registro(self):
         self.armar()
         for campo in ("nombre", "apellido_paterno", "apellido_materno"):
             with self.subTest(campo=campo):
                 r = self.post("/api/registrar",
-                              datos_registro(**{campo: "MARÍA﻿JOSÉ"}))
+                              datos_registro(**{campo: "MARÍA\ufeffJOSÉ"}))
                 self.assertEqual(r.status_code, 200, r.get_json())
+                self.assertEqual(self.bd.llamadas[-1][campo], "MARÍAJOSÉ")
 
 
 # ================================ limites.py: guardia para la corrección
