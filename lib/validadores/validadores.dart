@@ -37,7 +37,15 @@ class Validadores {
     return fecha;
   }
 
-  //validar la fecha de pago del recibo: formato DD/MM/AAAA, fecha real y no futura
+  //año con que empieza el folio: el de la fecha de pago (el del recibo, no el
+  //del reloj del equipo); si todavía no hay una fecha válida, el actual
+  static int anioDelFolio(String? fechaPago, {DateTime? hoy}) =>
+      parsearFecha(fechaPago)?.year ?? (hoy ?? DateTime.now()).year;
+
+  //validar la fecha de pago del recibo: formato DD/MM/AAAA, fecha real, no
+  //futura y del año actual o el anterior (quien pagó en diciembre se registra
+  //en enero). Sin el límite de años, "01/01/0999" pasaba, la app enviaba el
+  //folio "999-337308" y el servicio culpaba al número de transacción.
   static String? validarFechaPago(String? value, {DateTime? hoy}) {
     if (value == null || value.trim().isEmpty) {
       return 'Campo requerido';
@@ -49,6 +57,9 @@ class Validadores {
     final h = hoy ?? DateTime.now();
     if (fecha.isAfter(DateTime(h.year, h.month, h.day))) {
       return 'La fecha no puede ser futura';
+    }
+    if (fecha.year < h.year - 1) {
+      return 'Debe ser de ${h.year - 1} o ${h.year}';
     }
     return null;
   }

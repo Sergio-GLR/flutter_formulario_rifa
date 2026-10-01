@@ -28,7 +28,7 @@ from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from bd import BDNoDisponible, ClienteSupabase
-from limites import LimiteIntentos
+from limites import LimiteFallos, LimiteIntentos
 from srm import ClienteSRM, SRMNoDisponible, TransaccionRechazada
 
 log = logging.getLogger("servicio_rifa")
@@ -40,6 +40,8 @@ MSG_NO_ENCONTRADO = ("No encontramos un pago de predial vigente con ese número 
                      "transacción y fecha de pago. Revisa los datos de tu recibo.")
 MSG_PERSONA_MORAL = "El sorteo es exclusivo para personas físicas."
 MSG_LIMITE = "Demasiados intentos. Espera unos minutos y vuelve a intentarlo."
+MSG_LIMITE_FOLIO = ("Hubo demasiados intentos fallidos con este número de transacción. "
+                    "Intenta de nuevo más tarde o acude a un módulo del municipio.")
 MSG_NO_DISPONIBLE = "El servicio no está disponible en este momento. Intenta de nuevo más tarde."
 MSG_REGISTRADO = "Registro completado exitosamente."
 MSG_NO_REGISTRADO = "No fue posible completar el registro. Revisa tus datos e intenta de nuevo."
@@ -88,7 +90,11 @@ def _texto(datos, campo, obligatorio=True):
         valor = ""
     if not isinstance(valor, str):
         raise DatosInvalidos(f"El campo {campo} no es válido.")
-    valor = " ".join(valor.split())
+    # U+FEFF (BOM) llega al pegar texto de Word, Excel o un PDF. Es invisible y
+    # no ocupa lugar, así que se quita (no se vuelve espacio): el ciudadano ve
+    # "MARÍAJOSÉ". Python no lo cuenta como espacio y el formulario sí lo dejaba
+    # pasar, así que sin esto el nombre se rechazaba sin causa visible.
+    valor = " ".join(valor.replace("\ufeff", "").split())
     if obligatorio and not valor:
         raise DatosInvalidos(f"El campo {campo} es obligatorio.")
     return valor
@@ -136,8 +142,15 @@ def _txca_y_fecha(datos):
     return txca, fecha
 
 
+def _folio_canonico(txca):
+    """'2026-0337308' -> '2026-337308': los ceros a la izquierda no deben dar
+    un contador de fallos nuevo para el mismo folio."""
+    anio, numero = txca.split("-")
+    return f"{anio}-{int(numero)}"
+
+
 # ------------------------------------------------------------------ la app
-def crear_app(srm=None, bd=None, limite=None, config=None):
+def crear_app(srm=None, bd=None, limite=None, limite_folio=None, config=None):
     cfg = dict(os.environ)
     cfg.update(config or {})
 
@@ -160,6 +173,12 @@ def crear_app(srm=None, bd=None, limite=None, config=None):
         ventana_segundos=int(cfg.get("LIMITE_VENTANA_SEGUNDOS", "600")),
         redes_exentas=cfg.get("REDES_INTERNAS", "").split(","),
     )
+    # Fallos por folio: protege la fecha de pago de un folio ajeno aunque el
+    # atacante use una IP distinta en cada intento (limite solo cuenta por IP).
+    limite_folio = limite_folio or LimiteFallos(
+        maximo=int(cfg.get("LIMITE_FALLOS_FOLIO", "5")),
+        ventana_segundos=int(cfg.get("LIMITE_FALLOS_FOLIO_SEGUNDOS", "3600")),
+    )
     origenes = {o.strip() for o in cfg.get("ORIGENES_PERMITIDOS", "").split(",") if o.strip()}
 
     def error(mensaje, http):
@@ -167,13 +186,27 @@ def crear_app(srm=None, bd=None, limite=None, config=None):
 
     def verificar_pago(txca, fecha):
         """Consulta el SRM y aplica las reglas del sorteo. Devuelve el Predio."""
+        folio = _folio_canonico(txca)
+        # Los módulos del municipio quedan fuera, igual que del límite por IP:
+        # ahí el personal ve el recibo, y es a donde se manda al ciudadano
+        # cuyo folio quedó bloqueado.
+        contar = not limite.exenta(request.remote_addr or "")
+        # Bloqueado = ni siquiera la fecha correcta pasa: si no, el límite solo
+        # retrasaría al atacante en lugar de detenerlo.
+        if contar and limite_folio.bloqueado(folio):
+            log.warning("txca=%s bloqueada por demasiados fallos", txca)
+            raise _Rechazo(MSG_LIMITE_FOLIO, 429)
         try:
             predio = srm.consultar(txca)
         except TransaccionRechazada as e:
             log.info("txca=%s rechazada por el SRM [%s]", txca, e.codigo)
+            if contar:
+                limite_folio.fallo(folio)
             raise _Rechazo(MSG_NO_ENCONTRADO)
         if predio.fecha_pago != fecha:
             log.info("txca=%s: la fecha de pago no coincide", txca)
+            if contar:
+                limite_folio.fallo(folio)
             raise _Rechazo(MSG_NO_ENCONTRADO)
         if predio.tipo_persona != "FISICA":
             log.info("txca=%s: persona %s", txca, predio.tipo_persona)
@@ -215,7 +248,7 @@ def crear_app(srm=None, bd=None, limite=None, config=None):
 
     @app.errorhandler(_Rechazo)
     def _rechazo(e):
-        return error(e.mensaje, 422)
+        return error(e.mensaje, e.http)
 
     @app.errorhandler(SRMNoDisponible)
     def _srm_caido(e):
@@ -283,9 +316,10 @@ def crear_app(srm=None, bd=None, limite=None, config=None):
 
 
 class _Rechazo(Exception):
-    def __init__(self, mensaje):
+    def __init__(self, mensaje, http=422):
         super().__init__(mensaje)
         self.mensaje = mensaje
+        self.http = http
 
 
 if __name__ == "__main__":
