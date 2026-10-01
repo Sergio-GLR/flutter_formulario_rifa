@@ -79,3 +79,53 @@ class LimiteIntentos:
                 return False
             cola.append(ahora)
             return True
+
+
+class LimiteFallos:
+    """Fallos por número de transacción, sin importar la IP.
+
+    El límite por IP no protege un folio ajeno: con una IP por intento se
+    prueban todas las fechas de pago. Aquí cuenta cada fecha equivocada (o
+    folio inexistente) de un MISMO folio; al llegar al máximo, el folio queda
+    bloqueado hasta que el fallo más viejo salga de la ventana, aunque llegue
+    la fecha correcta. Los aciertos no cuentan.
+
+    Igual que LimiteIntentos: en memoria y por proceso."""
+
+    def __init__(self, maximo: int, ventana_segundos: int, reloj=time.monotonic):
+        self.maximo = maximo
+        self.ventana = ventana_segundos
+        self._reloj = reloj
+        self._fallos = defaultdict(deque)
+        self._candado = threading.Lock()
+        self._ultima_limpieza = reloj()
+
+    def _vigentes(self, clave, ahora):
+        cola = self._fallos.get(clave)
+        if cola is None:
+            return None
+        while cola and ahora - cola[0] >= self.ventana:
+            cola.popleft()
+        if not cola:
+            del self._fallos[clave]
+            return None
+        return cola
+
+    def _limpiar(self, ahora):
+        if ahora - self._ultima_limpieza < self.ventana:
+            return
+        for clave in list(self._fallos):
+            self._vigentes(clave, ahora)
+        self._ultima_limpieza = ahora
+
+    def bloqueado(self, clave: str) -> bool:
+        ahora = self._reloj()
+        with self._candado:
+            cola = self._vigentes(clave, ahora)
+            return cola is not None and len(cola) >= self.maximo
+
+    def fallo(self, clave: str) -> None:
+        ahora = self._reloj()
+        with self._candado:
+            self._limpiar(ahora)
+            self._fallos[clave].append(ahora)

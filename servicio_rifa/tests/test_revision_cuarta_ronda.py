@@ -32,11 +32,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import srm as modulo_srm  # noqa: E402
 from bd import BDNoDisponible, ClienteSupabase  # noqa: E402
-from limites import LimiteIntentos  # noqa: E402
+from limites import LimiteFallos, LimiteIntentos  # noqa: E402
 from srm import ClienteSRM, TransaccionRechazada  # noqa: E402
 
 from tests.test_servicio import (  # noqa: E402
-    OK_SRM, SALT_FALSO, TOKEN_FALSO, _Base, _Resp, _SesionFalla,
+    OK_SRM, SALT_FALSO, TOKEN_FALSO, SRMFalso, _Base, _Resp, _SesionFalla,
     datos_registro, predio)
 
 MSG_YA_REGISTRADO = "Este número de transacción ya fue registrado anteriormente."
@@ -268,12 +268,18 @@ class FallaSinLimiteDeIntentosPorFolio(_Base):
     IP por fecha basta para sacar la dirección de cualquier folio con
     /api/validar y registrarlo a su nombre con /api/registrar.
 
-    Debe haber un límite de fallos por número de transacción, además del de IP."""
+    Debe haber un límite de fallos por número de transacción, además del de IP.
+
+    Corregido (1 oct 2026): limites.LimiteFallos, 5 fallos por folio en una
+    hora (LIMITE_FALLOS_FOLIO, LIMITE_FALLOS_FOLIO_SEGUNDOS). Los ceros a la
+    izquierda cuentan como el mismo folio."""
 
     def test_probar_todas_las_fechas_de_un_folio_desde_varias_ips_se_bloquea(self):
+        """El atacante no sabe cuál es la fecha buena: en promedio la encuentra a
+        la mitad del mes. Aquí llega al final (del 30 al 1; la buena es el 3)."""
         self.armar(limite=LimiteIntentos(15, 600, ["10.0.0.0/8"]))
         respuestas = []
-        for dia in range(1, 31):  # septiembre completo; la buena es el 3
+        for dia in range(30, 0, -1):
             r = self.post("/api/validar",
                           {"txca": "2026-337308", "fecha_pago": f"2026-09-{dia:02d}"},
                           ip=f"200.1.1.{dia}")  # una IP por intento
@@ -283,6 +289,55 @@ class FallaSinLimiteDeIntentosPorFolio(_Base):
                          "Con una IP por fecha se encontró la fecha de pago del folio "
                          f"(día {acertadas}) y su dirección")
         self.assertIn(429, [s for _, s in respuestas])
+        # Bloqueado tampoco se puede registrar
+        r = self.post("/api/registrar", datos_registro(), ip="200.1.2.1")
+        self.assertEqual(r.status_code, 429)
+        self.assertEqual(self.bd.llamadas, [])
+
+    def test_los_ceros_a_la_izquierda_no_dan_intentos_nuevos(self):
+        self.armar(limite=LimiteIntentos(1000, 600))
+        for i in range(10):
+            self.post("/api/validar", {"txca": "2026-" + "0" * (i % 4) + "337308",
+                                       "fecha_pago": f"2026-08-{i + 1:02d}"},
+                      ip=f"200.1.1.{i}")
+        r = self.post("/api/validar", {"txca": "2026-0337308", "fecha_pago": "2026-09-03"})
+        self.assertEqual(r.status_code, 429)
+
+    def test_guardia_el_ciudadano_que_se_equivoca_unas_veces_si_entra(self):
+        self.armar()
+        for dia in (4, 5, 6, 7):
+            r = self.post("/api/validar",
+                          {"txca": "2026-337308", "fecha_pago": f"2026-09-{dia:02d}"})
+            self.assertEqual(r.status_code, 422)
+        r = self.post("/api/registrar", datos_registro())
+        self.assertEqual(r.status_code, 200, r.get_json())
+
+    def test_guardia_un_folio_bloqueado_no_bloquea_otros(self):
+        self.armar(srm=SRMFalso({"2026-337308": predio(), "2026-111111": predio(txca="2026-111111")}))
+        for dia in range(10, 20):
+            self.post("/api/validar", {"txca": "2026-337308", "fecha_pago": f"2026-09-{dia}"})
+        r = self.post("/api/validar", {"txca": "2026-111111", "fecha_pago": "2026-09-03"})
+        self.assertEqual(r.status_code, 200)
+
+    def test_guardia_los_modulos_atienden_un_folio_bloqueado(self):
+        """El mensaje de bloqueo manda al ciudadano a un módulo: ahí debe pasar."""
+        self.armar()
+        for dia in range(10, 20):
+            self.post("/api/validar", {"txca": "2026-337308", "fecha_pago": f"2026-09-{dia}"})
+        self.assertEqual(self.post("/api/registrar", datos_registro()).status_code, 429)
+        r = self.post("/api/registrar", datos_registro(), ip="10.20.30.40")
+        self.assertEqual(r.status_code, 200, r.get_json())
+
+    def test_guardia_el_bloqueo_se_libera_con_el_tiempo(self):
+        reloj = [0.0]
+        lim = LimiteFallos(3, 3600, reloj=lambda: reloj[0])
+        for _ in range(3):
+            lim.fallo("2026-337308")
+        self.assertTrue(lim.bloqueado("2026-337308"))
+        reloj[0] = 3599.0
+        self.assertTrue(lim.bloqueado("2026-337308"))
+        reloj[0] = 3600.0
+        self.assertFalse(lim.bloqueado("2026-337308"))
 
 
 # =============================== app.py: el folio no se compara canónico

@@ -33,6 +33,10 @@ Reglas que aplica:
 - `/api/validar` devuelve **solo la dirección**, nunca el propietario ni la clave catastral.
 - **Límite de intentos por IP** (15 cada 10 minutos por defecto). Las redes de los
   módulos del municipio quedan exentas.
+- **Límite de fallos por folio** (5 por hora por defecto), sin importar la IP:
+  sin él, con una IP distinta por intento se prueban todas las fechas de pago de un
+  folio ajeno. Al llegar al límite ni la fecha correcta pasa; el ciudadano debe
+  esperar o ir a un módulo (las redes internas también quedan exentas aquí).
 
 ## Instalar en el servidor municipal
 
