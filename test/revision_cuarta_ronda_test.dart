@@ -151,6 +151,8 @@ void main() {
     // culpa al folio, que está bien, y no a la fecha. Con "01/01/0000" la
     // txca es "0-337308". El sorteo es de predial 2026; un año fuera de un
     // rango razonable debe rechazarse en el campo de fecha.
+    //
+    // Corregido (1 oct 2026): solo el año actual y el anterior.
     final hoy = DateTime(2026, 10, 1);
 
     for (final fecha in ['01/01/0000', '01/01/0999', '01/01/1900']) {
@@ -162,6 +164,16 @@ void main() {
     test('GUARDIA: las fechas de pago normales siguen siendo válidas', () {
       expect(Validadores.validarFechaPago('03/09/2026', hoy: hoy), isNull);
       expect(Validadores.validarFechaPago('15/12/2025', hoy: hoy), isNull);
+      expect(Validadores.validarFechaPago('01/01/2025', hoy: hoy), isNull);
+    });
+
+    test('GUARDIA: el límite es el año anterior, no los últimos 12 meses', () {
+      // En enero se sigue aceptando todo el año anterior
+      final enero = DateTime(2027, 1, 10);
+      expect(Validadores.validarFechaPago('02/01/2026', hoy: enero), isNull);
+      expect(Validadores.validarFechaPago('31/12/2025', hoy: enero), isNotNull);
+      expect(Validadores.validarFechaPago('31/12/2025', hoy: enero),
+          'Debe ser de 2026 o 2027');
     });
   });
 
