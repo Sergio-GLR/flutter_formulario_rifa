@@ -2,7 +2,7 @@
 Servicio interno de la Rifa Predial.
 
 Corre en el servidor municipal (junto a la versión web del formulario) y es
-la ÚNICA pieza que habla con el SRM y con Supabase. El navegador solo le
+la ÚNICA pieza que habla con el SRM y con la base de datos (PostgreSQL). El navegador solo le
 envía lo que captura el ciudadano.
 
 Endpoints (JSON):
@@ -27,7 +27,7 @@ from flask import Flask, jsonify, request
 from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from bd import BDNoDisponible, ClienteSupabase
+from bd import BDNoDisponible, ClientePostgres
 from limites import LimiteFallos, LimiteIntentos
 from srm import ClienteSRM, SRMNoDisponible, TransaccionRechazada
 
@@ -167,7 +167,7 @@ def crear_app(srm=None, bd=None, limite=None, limite_folio=None, config=None):
         app.wsgi_app = ProxyFix(app.wsgi_app, x_for=proxies)
 
     srm = srm or ClienteSRM(cfg.get("SRM_URL"), cfg.get("SRM_TOKEN"), cfg.get("SRM_SALT"))
-    bd = bd or ClienteSupabase(cfg.get("SUPABASE_URL"), cfg.get("SUPABASE_SECRET_KEY"))
+    bd = bd or ClientePostgres(cfg.get("DATABASE_URL"))
     limite = limite or LimiteIntentos(
         maximo=int(cfg.get("LIMITE_INTENTOS", "15")),
         ventana_segundos=int(cfg.get("LIMITE_VENTANA_SEGUNDOS", "600")),
@@ -257,7 +257,7 @@ def crear_app(srm=None, bd=None, limite=None, limite_folio=None, config=None):
 
     @app.errorhandler(BDNoDisponible)
     def _bd_caida(e):
-        log.error("Supabase no disponible: %s", e)
+        log.error("Base de datos no disponible: %s", e)
         return error(MSG_NO_DISPONIBLE, 503)
 
     @app.errorhandler(Exception)

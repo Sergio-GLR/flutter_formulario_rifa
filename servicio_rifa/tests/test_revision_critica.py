@@ -23,13 +23,13 @@ import requests
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from bd import BDNoDisponible, ClienteSupabase  # noqa: E402
+from bd import BDNoDisponible  # noqa: E402
 from limites import LimiteIntentos  # noqa: E402
 from srm import ClienteSRM, SRMNoDisponible, TransaccionRechazada  # noqa: E402
 
 from tests.test_servicio import (  # noqa: E402
-    SALT_FALSO, TOKEN_FALSO, BDFalsa, SRMFalso, _Base, _Resp, _SesionFalla,
-    datos_registro, predio)
+    SALT_FALSO, TOKEN_FALSO, BDFalsa, SRMFalso, _Base, _ConexionFalsa, _Resp, _SesionFalla,
+    bd_con, datos_registro, predio)
 
 
 def setUpModule():
@@ -147,14 +147,14 @@ class FallaErroresDelSRMSinControlar(_Base):
         self.assertTrue(r.is_json)
 
 
-# ================================================== bd.py: respuesta de Supabase
-class FallaRespuestaDeSupabase(unittest.TestCase):
+# ================================================== bd.py: respuesta de la base
+class FallaRespuestaDeLaBD(unittest.TestCase):
     """bd.py hace bool(datos['success']): el texto "false" es verdadero en
     Python, así que un rechazo se reportaría como registro exitoso. Y
     str(None) le mostraría al ciudadano el mensaje "None"."""
 
     def _registrar(self, respuesta):
-        bd = ClienteSupabase("https://x", "k", sesion=_SesionFalla(_Resp(respuesta)))
+        bd = bd_con(_ConexionFalsa(fila=(respuesta,)))
         return bd.registrar_boleto(txca="2026-1", nombre="A", apellido_paterno="B",
                                    apellido_materno=None, telefono="6181234567",
                                    clave_catastral="C", propietario="P", direccion="D")

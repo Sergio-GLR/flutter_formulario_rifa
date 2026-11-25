@@ -1,14 +1,19 @@
 # Servicio interno — Rifa Predial
 
 Pieza de servidor que verifica cada registro con el SRM antes de guardarlo en
-Supabase. Resuelve los hallazgos críticos 1 y 2 de la revisión de seguridad:
-el navegador ya no conoce el token ni el salt del SRM ni ninguna clave de
-Supabase, y nadie puede registrar boletos saltándose la verificación.
+la base de datos (PostgreSQL). Resuelve los hallazgos críticos 1 y 2 de la
+revisión de seguridad: el navegador ya no conoce el token ni el salt del SRM
+ni ninguna credencial de la base, y nadie puede registrar boletos saltándose
+la verificación.
+
+> Hasta nov 2026 la base estaba en Supabase. El proyecto quedó pausado y se
+> cambió por un PostgreSQL propio (local y después en el servidor del
+> municipio). El esquema está en `base_datos/esquema.sql`.
 
 ```
 Navegador ──▶ /api/validar, /api/registrar ──▶ SRM (Pr_sorteo)
                          │
-                         └──▶ Supabase: registrar_boleto_rifa (clave secreta)
+                         └──▶ PostgreSQL: registrar_boleto_rifa (rol rifa_servicio)
 ```
 
 ## Qué hace
@@ -21,7 +26,7 @@ Navegador ──▶ /api/validar, /api/registrar ──▶ SRM (Pr_sorteo)
 
 Los errores responden `{"ok": false, "mensaje": "<texto para el ciudadano>"}` con
 HTTP 400 (datos inválidos), 422 (rechazo), 429 (demasiados intentos) o 503
-(SRM o Supabase sin respuesta). El formulario solo tiene que mostrar `mensaje`.
+(SRM o base de datos sin respuesta). El formulario solo tiene que mostrar `mensaje`.
 
 Reglas que aplica:
 
@@ -84,24 +89,61 @@ Necesitas estar en la red municipal (o VPN), porque el servicio consulta el SRM.
 En producción no hace falta nada de esto: la app y el servicio comparten
 dominio y la app llama a `/api/...` directamente.
 
+## Base de datos
+
+`base_datos/esquema.sql` crea, en una base PostgreSQL 17+ vacía, las tablas
+`Pagadores`, `Predios` y `Boletos_Rifa` y las funciones
+`registrar_boleto_rifa`, `normalizar_telefono` y `obtener_boletos_impresion`
+(copiadas del backup de Supabase del 19 oct 2026). También crea el rol
+`rifa_servicio`, que **solo** puede ejecutar `registrar_boleto_rifa`: no lee
+ni escribe las tablas directamente.
+
+Instalarla (como dueño de la base):
+
+```
+createdb rifa_predial
+psql -d rifa_predial -v ON_ERROR_STOP=1 -f base_datos/esquema.sql
+psql -d rifa_predial -c "ALTER ROLE rifa_servicio LOGIN PASSWORD '...'"
+```
+
+y poner en `.env` `DATABASE_URL=postgresql://rifa_servicio:...@HOST:5432/rifa_predial`.
+La contraseña nunca va en Git.
+
+Reglas que aplica la función: un boleto por número de transacción y máximo 5
+por teléfono (normalizado: sin espacios, guiones ni +52). Si cambian sus
+mensajes de rechazo, hay que cambiar `RECHAZOS_DE_LA_BD` en `app.py`
+(`tests/test_bd_real.py` lo revisa).
+
 ## Pruebas
 
+Con el SRM y la base simulados (no tocan nada externo):
+
 ```
-python -m unittest -v tests.test_servicio
+python -m unittest discover -v tests
 ```
 
-29 pruebas con el SRM y Supabase simulados. Cubren la verificación, la fecha
-de pago, la persona FÍSICA, la privacidad de las respuestas, la validación de
-entradas, el límite de intentos y el cliente del SRM (firma, reintentos,
-respuestas inesperadas). La firma HMAC se verificó contra el ejemplo de la
-sección 6 de la documentación del SRM.
+Las pruebas `Supuesto…` fallan a propósito hasta confirmar con el SRM cada
+supuesto (ver el encabezado de cada archivo `test_revision_*`).
 
-## Después de instalarlo
+Contra un PostgreSQL real, con un contenedor de Docker solo para pruebas
+(credenciales de prueba en `base_datos/compose.pruebas.yaml`):
 
-1. Cambiar el formulario para que llame a `/api/validar` y `/api/registrar`,
-   y agregar el campo de fecha de pago.
-2. Quitar `.env` de los assets de `pubspec.yaml` y borrar de la app el token,
-   el salt y las claves de Supabase.
-3. En Supabase: `revoke execute on function registrar_boleto_rifa(...) from anon, authenticated;`
-4. Correr los tests del formulario (`flutter test test/revision_test.dart`) y de la
-   base (`tests.test_bd_real` en `script_boletos`): todos deben quedar en verde.
+```
+docker compose -f base_datos/compose.pruebas.yaml up -d
+$env:PRUEBAS_BD_ADMIN = "postgresql://postgres:pruebas_admin@127.0.0.1:55432/rifa_predial"
+$env:PRUEBAS_BD_URL   = "postgresql://rifa_servicio:pruebas_rifa@127.0.0.1:55432/rifa_predial"
+python -m unittest -v tests.test_bd_real
+docker compose -f base_datos/compose.pruebas.yaml down -v
+```
+
+Sin esas variables, `tests.test_bd_real` se salta. Nunca apuntarlas a la base
+del servidor: cada prueba borra las tablas.
+
+## Pasar a PostgreSQL en el servidor
+
+1. Instalar PostgreSQL 17 o superior y crear la base con `base_datos/esquema.sql`
+   (sección anterior).
+2. `python -m pip install -r requirements.txt` (agrega `psycopg`).
+3. En el `.env` del servidor: agregar `DATABASE_URL` y borrar `SUPABASE_URL` y
+   `SUPABASE_SECRET_KEY`.
+4. Reiniciar el servicio y probar un registro.
