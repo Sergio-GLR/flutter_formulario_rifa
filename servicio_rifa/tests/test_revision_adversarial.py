@@ -27,7 +27,7 @@ import requests
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app import MSG_PERSONA_MORAL, crear_app  # noqa: E402
-from bd import ClienteSupabase  # noqa: E402
+import bd as modulo_bd  # noqa: E402
 from limites import LimiteIntentos  # noqa: E402
 from srm import ClienteSRM, SRMNoDisponible  # noqa: E402
 
@@ -194,15 +194,15 @@ class FallaElFormularioSeRindeAntesQueElServicio(unittest.TestCase):
 
         srm = ClienteSRM("https://srm", TOKEN_FALSO, SALT_FALSO,
                          sesion=Sesion(requests.ConnectionError(), _Resp(OK_SRM)))
-        bd = ClienteSupabase("https://bd", "clave",
-                             sesion=Sesion(_Resp({"success": True, "message": "ok"})))
-        app = crear_app(srm=srm, bd=bd, limite=LimiteIntentos(1000, 600), config={})
+        app = crear_app(srm=srm, bd=BDFalsa(), limite=LimiteIntentos(1000, 600), config={})
         r = app.test_client().post("/api/registrar", json=datos_registro(),
                                    environ_base={"REMOTE_ADDR": "200.1.1.1"})
         self.assertEqual(r.status_code, 200, r.json)
 
         # Un timeout escalar de requests aplica a conectar y a leer por separado
         peor_caso = sum(2 * t if isinstance(t, (int, float)) else sum(t) for t in timeouts)
+        # La base ya no es HTTP: conectar + tope de la consulta (bd.TIMEOUT_BD)
+        peor_caso += sum(modulo_bd.TIMEOUT_BD)
         self.assertLess(peor_caso, espera_formulario,
                         f"El servicio puede tardar {peor_caso} s y el formulario "
                         f"solo espera {espera_formulario} s (timeouts: {timeouts})")

@@ -31,7 +31,7 @@ import requests
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import srm as modulo_srm  # noqa: E402
-from bd import BDNoDisponible, ClienteSupabase  # noqa: E402
+from bd import BDNoDisponible, ClientePostgres  # noqa: E402
 from limites import LimiteFallos, LimiteIntentos  # noqa: E402
 from srm import ClienteSRM, TransaccionRechazada  # noqa: E402
 
@@ -211,18 +211,24 @@ class SupuestoElTimeoutLimitaLaPeticionCompleta(unittest.TestCase):
                 pass
         self.assertLess(time.monotonic() - inicio, peor_caso + 1.0)
 
-    def test_supabase_no_puede_pasarse_del_peor_caso(self):
-        cliente = ClienteSupabase(self.servidor.url, "clave", sesion=_sesion_sin_proxy(),
-                                  timeout=self.TIMEOUT)
-        inicio = time.monotonic()
+    def test_postgres_no_puede_pasarse_del_peor_caso(self):
+        """Una base que acepta la conexión y nunca contesta: el tiempo de
+        conexión de libpq (connect_timeout) corta el intento completo."""
+        mudo = socket.socket()
+        mudo.bind(("127.0.0.1", 0))
+        mudo.listen(4)
         try:
-            cliente.registrar_boleto(
-                txca="2026-337308", nombre="ANA", apellido_paterno="LÓPEZ",
-                apellido_materno=None, telefono="6181234567", clave_catastral="10-001",
-                propietario="X", direccion="CALLE 1")
-        except Exception:
-            pass
-        self.assertLess(time.monotonic() - inicio, sum(self.TIMEOUT) + 1.0)
+            cliente = ClientePostgres(
+                f"postgresql://x:y@127.0.0.1:{mudo.getsockname()[1]}/rifa", tiempo_conexion=2)
+            inicio = time.monotonic()
+            with self.assertRaises(BDNoDisponible):
+                cliente.registrar_boleto(
+                    txca="2026-337308", nombre="ANA", apellido_paterno="LÓPEZ",
+                    apellido_materno=None, telefono="6181234567", clave_catastral="10-001",
+                    propietario="X", direccion="CALLE 1")
+            self.assertLess(time.monotonic() - inicio, 2 + 1.5)
+        finally:
+            mudo.close()
 
 
 # ===================================== app.py: el registro no es idempotente

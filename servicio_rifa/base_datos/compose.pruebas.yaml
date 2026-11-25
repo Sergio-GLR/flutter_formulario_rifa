@@ -1,0 +1,22 @@
+# Postgres SOLO para pruebas locales (tests/test_bd_real.py). Las contraseñas
+# de aquí son de prueba y la base escucha solo en 127.0.0.1. Nunca usar este
+# archivo en el servidor del municipio.
+#
+#   docker compose -f base_datos/compose.pruebas.yaml up -d
+#   $env:PRUEBAS_BD_ADMIN = "postgresql://postgres:pruebas_admin@127.0.0.1:55432/rifa_predial"
+#   $env:PRUEBAS_BD_URL   = "postgresql://rifa_servicio:pruebas_rifa@127.0.0.1:55432/rifa_predial"
+#   python -m unittest -v tests.test_bd_real
+#   docker compose -f base_datos/compose.pruebas.yaml down -v
+services:
+  postgres:
+    image: postgres:17
+    container_name: rifa-postgres-pruebas
+    environment:
+      POSTGRES_DB: rifa_predial
+      POSTGRES_PASSWORD: pruebas_admin
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      # Se ejecutan en orden alfabético la primera vez que arranca el contenedor
+      - ./esquema.sql:/docker-entrypoint-initdb.d/01-esquema.sql:ro
+      - ./pruebas_rol.sql:/docker-entrypoint-initdb.d/02-pruebas_rol.sql:ro

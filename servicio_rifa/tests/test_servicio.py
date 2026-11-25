@@ -15,7 +15,9 @@ import requests
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app import MSG_LIMITE, MSG_NO_ENCONTRADO, MSG_PERSONA_MORAL, crear_app  # noqa: E402
-from bd import BDNoDisponible, ClienteSupabase  # noqa: E402
+import psycopg  # noqa: E402
+
+from bd import BDNoDisponible, ClientePostgres  # noqa: E402
 from limites import LimiteIntentos  # noqa: E402
 from srm import (ClienteSRM, Predio, SRMNoDisponible, TransaccionRechazada,  # noqa: E402
                  firmar)
@@ -369,29 +371,71 @@ class ClienteDelSRM(unittest.TestCase):
             ClienteSRM("https://srm", "", SALT_FALSO)
 
 
-class ClienteDeSupabase(unittest.TestCase):
-    def test_envia_los_parametros_de_la_funcion(self):
-        sesion = _SesionFalla(_Resp({"success": True, "message": "ok"}))
-        bd = ClienteSupabase("https://x.supabase.co/", "sb_secret_falsa", sesion=sesion)
-        r = bd.registrar_boleto(txca="2026-1", nombre="ANA", apellido_paterno="LÓPEZ",
-                                apellido_materno=None, telefono="6181234567",
-                                clave_catastral="CC", propietario="P", direccion="D")
+class _ConexionFalsa:
+    """Conexión de psycopg simulada: guarda lo que se ejecuta y devuelve `fila`."""
+
+    def __init__(self, fila=None, error=None):
+        self.fila, self.error, self.ejecutado = fila, error, []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def execute(self, sql, params=None):
+        if self.error:
+            raise self.error
+        self.ejecutado.append((sql, params))
+        return self
+
+    def fetchone(self):
+        return self.fila
+
+
+def bd_con(conexion):
+    return ClientePostgres("postgresql://rifa_servicio:secreta@bd:5432/rifa",
+                           conectar=lambda dsn: conexion)
+
+
+ARGS = dict(txca="2026-1", nombre="ANA", apellido_paterno="LÓPEZ", apellido_materno=None,
+            telefono="6181234567", clave_catastral="CC", propietario="P", direccion="D")
+
+
+class ClienteDePostgres(unittest.TestCase):
+    def test_llama_a_la_funcion_con_sus_8_parametros_en_orden(self):
+        con = _ConexionFalsa(fila=({"success": True, "message": "ok"},))
+        r = bd_con(con).registrar_boleto(**ARGS)
         self.assertEqual(r, {"success": True, "message": "ok"})
-        self.assertEqual(sorted(sesion.enviados[0]), sorted([
-            "p_numero_transaccion", "p_nombre_pagador", "p_apellido_paterno", "p_apellido_materno",
-            "p_telefono_pagador", "p_clave_catastral", "p_propietario_registrado",
-            "p_direccion_predio"]))
-        self.assertNotIn("sb_secret_falsa", repr(bd))
+        sql, params = con.ejecutado[0]
+        self.assertIn("registrar_boleto_rifa", sql)
+        self.assertEqual(params, ("2026-1", "ANA", "LÓPEZ", None, "6181234567", "CC", "P", "D"))
+
+    def test_la_contrasena_no_aparece_en_repr(self):
+        self.assertNotIn("secreta", repr(bd_con(_ConexionFalsa())))
+
+    def test_configuracion_incompleta(self):
+        with self.assertRaises(ValueError):
+            ClientePostgres("")
 
     def test_errores(self):
-        for salida in (requests.ConnectionError(), _Resp({"message": "x"}, status=401),
-                       _Resp({"raro": 1})):
-            with self.subTest(salida=salida):
-                bd = ClienteSupabase("https://x", "k", sesion=_SesionFalla(salida))
+        casos = {
+            "sin conexión": _ConexionFalsa(error=psycopg.OperationalError("connection refused")),
+            "error de la consulta": _ConexionFalsa(error=psycopg.errors.UndefinedFunction("no existe")),
+            "sin fila": _ConexionFalsa(fila=None),
+            "forma rara": _ConexionFalsa(fila=({"raro": 1},)),
+        }
+        for nombre, con in casos.items():
+            with self.subTest(nombre):
                 with self.assertRaises(BDNoDisponible):
-                    bd.registrar_boleto(txca="1", nombre="A", apellido_paterno="B",
-                                        apellido_materno=None, telefono="1", clave_catastral="C",
-                                        propietario="P", direccion="D")
+                    bd_con(con).registrar_boleto(**ARGS)
+
+    def test_el_error_no_lleva_la_contrasena(self):
+        con = _ConexionFalsa(error=psycopg.OperationalError(
+            'password authentication failed for user "rifa_servicio" (secreta)'))
+        with self.assertRaises(BDNoDisponible) as ctx:
+            bd_con(con).registrar_boleto(**ARGS)
+        self.assertNotIn("secreta", str(ctx.exception))
 
 
 if __name__ == "__main__":

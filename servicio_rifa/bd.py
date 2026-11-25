@@ -1,14 +1,18 @@
 """
-Registro en Supabase llamando a la función RPC registrar_boleto_rifa por la
-API REST, con la clave SECRETA (solo vive en el servidor).
+Registro en PostgreSQL llamando a la función registrar_boleto_rifa
+(base_datos/esquema.sql), con el rol rifa_servicio, que solo puede ejecutar
+esa función.
 
-Se usa `requests` directamente en lugar del paquete supabase para tener menos
-dependencias; es la misma petición que hace ese paquete.
+Antes se llamaba por la API REST de Supabase; desde nov 2026 la base vive en
+un PostgreSQL propio (primero local y después en el servidor del municipio).
+La función, sus reglas y sus mensajes son los mismos.
 """
 
+import json
 import logging
+from urllib.parse import urlsplit
 
-import requests
+import psycopg
 
 log = logging.getLogger("servicio_rifa.bd")
 
@@ -16,57 +20,64 @@ log = logging.getLogger("servicio_rifa.bd")
 MSG_EXITO = "Registro completado exitosamente."
 MSG_RECHAZO = "No fue posible completar el registro. Revisa tus datos e intenta de nuevo."
 
-# (conectar, leer) en segundos. Supabase está en internet: 5 s alcanzan para
-# conectar y el saludo TLS; la función responde en menos de 1 s. Sumado al
-# peor caso del SRM (26 s, ver srm.TIMEOUT_SRM) da 39 s, menos que los 45 s
-# que espera el formulario. Si alguno sube, revisar que la suma siga cabiendo.
+# (conectar, consulta) en segundos. Sumado al peor caso del SRM (26 s, ver
+# srm.TIMEOUT_SRM) da 39 s, menos que los 45 s que espera el formulario. Si
+# alguno sube, revisar que la suma siga cabiendo. La consulta la corta el
+# propio Postgres (statement_timeout); la función responde en milisegundos.
 TIMEOUT_BD = (5, 8)
+
+SQL_REGISTRAR = "SELECT public.registrar_boleto_rifa(%s, %s, %s, %s, %s, %s, %s, %s)"
 
 
 class BDNoDisponible(Exception):
-    """No se pudo completar la llamada a Supabase (red o error inesperado)."""
+    """No se pudo completar la llamada a la base (red, permisos o respuesta inesperada)."""
 
 
-class ClienteSupabase:
-    def __init__(self, url: str, clave_secreta: str, sesion=None, timeout=TIMEOUT_BD):
-        if not (url and clave_secreta):
-            raise ValueError("Faltan SUPABASE_URL o SUPABASE_SECRET_KEY en la configuración")
-        self._endpoint = url.rstrip("/") + "/rest/v1/rpc/registrar_boleto_rifa"
-        self._headers = {"apikey": clave_secreta,
-                         "Authorization": f"Bearer {clave_secreta}",
-                         "Content-Type": "application/json"}
-        self._http = sesion or requests.Session()
-        self._timeout = timeout
+def _conectar(dsn: str, tiempo_conexion: int, tiempo_consulta: int):
+    # Una conexión por registro: el volumen es bajo (un ciudadano registra
+    # unos pocos boletos) y así no hay conexiones colgadas que administrar.
+    return psycopg.connect(
+        dsn,
+        autocommit=True,
+        connect_timeout=tiempo_conexion,
+        options=f"-c statement_timeout={tiempo_consulta * 1000}",
+    )
 
-    def __repr__(self):  # nunca mostrar la clave en un log
-        return f"ClienteSupabase(endpoint={self._endpoint!r})"
+
+class ClientePostgres:
+    def __init__(self, dsn: str, conectar=None, tiempo_conexion: int = TIMEOUT_BD[0],
+                 tiempo_consulta: int = TIMEOUT_BD[1]):
+        if not dsn:
+            raise ValueError("Falta DATABASE_URL en la configuración")
+        self._dsn = dsn
+        self._conectar = conectar or (lambda d: _conectar(d, tiempo_conexion, tiempo_consulta))
+
+    def __repr__(self):  # nunca mostrar la contraseña en un log
+        partes = urlsplit(self._dsn)
+        return f"ClientePostgres(host={partes.hostname!r}, base={partes.path.lstrip('/')!r})"
 
     def registrar_boleto(self, *, txca, nombre, apellido_paterno, apellido_materno,
                          telefono, clave_catastral, propietario, direccion) -> dict:
         """Devuelve {'success': bool, 'message': str} tal como lo responde la función."""
-        params = {
-            "p_numero_transaccion": txca,
-            "p_nombre_pagador": nombre,
-            "p_apellido_paterno": apellido_paterno,
-            "p_apellido_materno": apellido_materno,   # None si no tiene
-            "p_telefono_pagador": telefono,
-            "p_clave_catastral": clave_catastral,
-            "p_propietario_registrado": propietario,
-            "p_direccion_predio": direccion,
-        }
+        params = (txca, nombre, apellido_paterno, apellido_materno, telefono,
+                  clave_catastral, propietario, direccion)
         try:
-            r = self._http.post(self._endpoint, json=params, headers=self._headers,
-                                timeout=self._timeout)
-        except requests.RequestException as e:
-            raise BDNoDisponible(f"Sin conexión con Supabase: {type(e).__name__}") from e
-        if r.status_code != 200:
-            # No se incluye el cuerpo completo: puede traer detalles internos
-            raise BDNoDisponible(f"Supabase respondió HTTP {r.status_code}")
+            with self._conectar(self._dsn) as conexion:
+                fila = conexion.execute(SQL_REGISTRAR, params).fetchone()
+        except psycopg.Error as e:
+            # Solo el tipo: el texto de psycopg puede traer usuario, host o
+            # detalles internos, y este mensaje llega al log del servidor.
+            raise BDNoDisponible(f"Error de PostgreSQL: {type(e).__name__}") from None
+        except OSError as e:
+            raise BDNoDisponible(f"Sin conexión con PostgreSQL: {type(e).__name__}") from None
+
         try:
-            datos = r.json()
+            datos = fila[0]
+            if isinstance(datos, str):  # json sin decodificar (otro adaptador)
+                datos = json.loads(datos)
             exito = datos["success"]
             mensaje = datos.get("message")
-        except (ValueError, KeyError, TypeError, AttributeError) as e:
+        except (ValueError, KeyError, TypeError, AttributeError, IndexError) as e:
             raise BDNoDisponible("Respuesta inesperada de registrar_boleto_rifa") from e
         # Solo un booleano real cuenta: bool("false") es True en Python y un
         # rechazo se reportaría como registro exitoso.
