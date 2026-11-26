@@ -6,11 +6,11 @@ de predial; si el SRM confirma el pago (persona FÍSICA), recibe un boleto.
 Solo web.
 
 ## Estado (nov 2026)
-- `servicio_rifa/` está EN LÍNEA en el servidor municipal desde sept 2026,
-  todavía contra el SRM de TEST.
-- El frontend Flutter (`lib/`) nunca se publicó. **Se va a reemplazar por
-  Astro** (repo `Sergio-GLR/formulario_rifa_predial`); queda como referencia funcional (comportamiento +
-  pruebas) que la versión en Astro debe igualar.
+- **Este repo quedó como referencia.** Nada de la rifa está desplegado. El
+  formulario y la API se reescribieron en Astro + Node en el repo
+  `Sergio-GLR/formulario_rifa_predial`, que es el que se desarrolla y despliega.
+- `servicio_rifa/` (Python) se tradujo a esa API con sus pruebas; no se
+  despliega. El Flutter (`lib/`) nunca se publicó.
 - Periodo de registro: diciembre 2026 – enero 2027 (sin fecha exacta).
 
 ## Arquitectura
@@ -69,9 +69,5 @@ Estado esperado hoy: Python 83 pruebas / 7 Supuesto en rojo (sin el Postgres de 
   Sin revisión de código obligatoria.
 
 ## Pendientes conocidos
-- Instalar PostgreSQL en el servidor y cambiar `.env` a `DATABASE_URL` (pasos en `servicio_rifa/README.md`).
-- Confirmar con el SRM: respuesta de éxito (`"error": null`?), formato de
-  `t_persona`, `fecha_pago` y largo de folios.
-- Pasar `SRM_URL` de TEST a producción.
-- El frontend se migró a Astro en el repo `Sergio-GLR/formulario_rifa_predial`;
-  el Flutter de `lib/` queda como referencia.
+Los pendientes del proyecto (despliegue, supuestos del SRM, paso a
+producción) se llevan en el repo `Sergio-GLR/formulario_rifa_predial`.
