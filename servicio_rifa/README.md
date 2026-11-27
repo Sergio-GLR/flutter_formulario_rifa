@@ -1,5 +1,9 @@
 # Servicio interno — Rifa Predial
 
+> **Reemplazado (nov 2026).** Este servicio se tradujo a la API en Node del
+> repo `Sergio-GLR/formulario_rifa_predial` (`src/servidor/`), con sus mismas
+> reglas y pruebas. Se conserva como referencia; **no se despliega**.
+
 Pieza de servidor que verifica cada registro con el SRM antes de guardarlo en
 la base de datos (PostgreSQL). Resuelve los hallazgos críticos 1 y 2 de la
 revisión de seguridad: el navegador ya no conoce el token ni el salt del SRM
